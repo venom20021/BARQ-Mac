@@ -70,6 +70,7 @@ class ConversationListener:
         ]
         self._parse_command: Optional[ParseCommandFn] = parse_command
         self._execute_command: Optional[ExecuteCommandFn] = execute_command
+        self.vad_silence_timeout = 0.4  # VAD endpointing silence threshold (seconds)
 
         # Register as the global singleton
         set_listener(self)
@@ -225,8 +226,8 @@ class ConversationListener:
                     # Read user name from DB for personalized greeting
                     user_name = None
                     try:
-                        from database.settings_dao import settings_dao
-                        name_val = await call_on_main_loop(settings_dao.get_setting("user_name", "core"))
+                        from database import settings_dao
+                        name_val = await call_on_main_loop(settings_dao.get_setting("user_name"))
                         if name_val and name_val.strip():
                             user_name = name_val.strip()
                     except Exception:

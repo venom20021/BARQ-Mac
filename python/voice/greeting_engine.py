@@ -16,7 +16,7 @@ selected from a large pool.
 
 import random
 from datetime import date, datetime
-from typing import Optional
+from typing import Any, Optional
 
 
 # ── Date helpers ─────────────────────────────────────────────────────
@@ -286,7 +286,7 @@ _FOLLOWUPS: list[tuple[str, str]] = [
 
 # ── Core helpers ─────────────────────────────────────────────────────
 
-def _pick_random(pool: list[str]) -> str:
+def _pick_random(pool: list[Any]) -> Any:
     """Pick a random item from a list."""
     return random.choice(pool)
 

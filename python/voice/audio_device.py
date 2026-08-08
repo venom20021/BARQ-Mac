@@ -42,9 +42,9 @@ def resolve_input_device(config_device: str) -> Optional[int]:
 
     # Auto-detect: find the best physical microphone
     if config_device.lower() == "auto":
-        idx = _auto_detect_input()
-        _resolved_input = idx
-        return idx
+        auto_idx = _auto_detect_input()
+        _resolved_input = auto_idx
+        return auto_idx
 
     # Try to match by name substring
     try:
@@ -86,9 +86,9 @@ def resolve_output_device(config_device: str) -> Optional[int]:
         return idx
 
     if config_device.lower() == "auto":
-        idx = _auto_detect_output()
-        _resolved_output = idx
-        return idx
+        auto_idx = _auto_detect_output()
+        _resolved_output = auto_idx
+        return auto_idx
 
     try:
         import sounddevice as sd

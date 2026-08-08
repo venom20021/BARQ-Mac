@@ -523,7 +523,7 @@ class BARQResponder:
         resampler = av.AudioResampler(format="s16", layout="mono", rate=24000)
 
         pcm_chunks: list[np.ndarray] = []
-        for frame in container.decode(audio=0):
+        for frame in container.decode(audio=0):  # type: ignore[union-attr]
             resampled = resampler.resample(frame)
             for r in resampled:
                 pcm_chunks.append(r.to_ndarray().flatten())

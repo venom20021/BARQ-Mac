@@ -238,15 +238,15 @@ async def _gather_background_info() -> str:
     try:
         from datetime import date
         today = date.today().isoformat()
-        interviews = await db_connection.fetch_all(
+        upcoming_interviews = await db_connection.fetch_all(
             "SELECT j.company, a.interview_date FROM applications a "
             "JOIN job_listings j ON a.job_listing_id = j.id "
             "WHERE a.interview_date IS NOT NULL AND a.interview_date >= ? "
             "ORDER BY a.interview_date ASC LIMIT 3", (today,),
         )
-        if interviews:
+        if upcoming_interviews:
             items = []
-            for row in interviews:
+            for row in upcoming_interviews:
                 label = "today" if row["interview_date"] == today else f"on {row['interview_date']}"
                 items.append(f"{row['company']} {label}")
             info_parts.append("Interviews: " + ", ".join(items) + ".")
@@ -286,11 +286,13 @@ async def _gather_background_info() -> str:
 
     # 8. Notes
     try:
-        total = (await db_connection.fetch_one("SELECT COUNT(*) as count FROM notes"))["count"]
+        total_row = await db_connection.fetch_one("SELECT COUNT(*) as count FROM notes")
+        total = total_row["count"] if total_row else 0
         if total:
-            pinned = (await db_connection.fetch_one(
+            pinned_row = await db_connection.fetch_one(
                 "SELECT COUNT(*) as count FROM notes WHERE pinned = 1"
-            ))["count"]
+            )
+            pinned = pinned_row["count"] if pinned_row else 0
             label = f"{total} note{'s' if total != 1 else ''}"
             if pinned:
                 label += f", {pinned} pinned"
@@ -678,7 +680,7 @@ async def _speak_greeting_and_feed_command(command_text: str):
 async def load_sound_settings():
     """Load saved sound preferences and sensitivity from the database on startup.
     This ensures user's mute preferences and sensitivity persist across app restarts."""
-    global _sensitivity
+    global _sensitivity, _vad_silence_timeout, _energy_threshold
 
     # Load sound preferences
     wake_val = await settings_dao.get_setting("wake_sound_enabled")
@@ -696,7 +698,6 @@ async def load_sound_settings():
     vad_val = await settings_dao.get_setting("vad_silence_timeout")
     if vad_val is not None:
         try:
-            global _vad_silence_timeout
             _vad_silence_timeout = float(vad_val)
             if _vad_silence_timeout < 0.1 or _vad_silence_timeout > 3.0:
                 _vad_silence_timeout = 0.4
@@ -710,7 +711,6 @@ async def load_sound_settings():
     energy_val = await settings_dao.get_setting("vad_energy_threshold")
     if energy_val is not None:
         try:
-            global _energy_threshold
             _energy_threshold = float(energy_val)
             if _energy_threshold < 50 or _energy_threshold > 2000:
                 _energy_threshold = 250.0
@@ -2332,9 +2332,9 @@ async def _execute_command_action(text: str, parsed: dict) -> str:
             return f"Closing {target}."
 
         elif action == "run_command":
-            result = subprocess.run(command_text, shell=True, capture_output=True, text=True, timeout=30)
-            output = (result.stdout or "").strip()[:200]
-            if result.returncode == 0:
+            proc = subprocess.run(command_text, shell=True, capture_output=True, text=True, timeout=30)
+            output = (proc.stdout or "").strip()[:200]
+            if proc.returncode == 0:
                 return f"Command executed. {output}" if output else "Command completed."
             return "Command returned error."
 

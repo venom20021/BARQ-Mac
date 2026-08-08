@@ -100,6 +100,7 @@ class EvolutionLogger:
 
     _instance: Optional[EvolutionLogger] = None
     _lock = threading.Lock()
+    _initialized: bool = False
 
     def __new__(cls) -> EvolutionLogger:
         if cls._instance is None:

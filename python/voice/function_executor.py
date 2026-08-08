@@ -668,12 +668,12 @@ def _media_control(action: str = "play_pause") -> dict[str, Any]:
 
     elif IS_MACOS:
         # AppleScript keystroke uses key names, not numeric codes
-        key_map = {
+        mac_key_map = {
             "play_pause": ("space",),
             "next": ("right", "command"),
             "previous": ("left", "command"),
         }
-        key, *mods = key_map[action]
+        key, *mods = mac_key_map[action]
         mods_clause = f" using {{{', '.join(mods)} down}}" if mods else ""
         subprocess.run(["osascript", "-e",
             f'tell application "System Events" to keystroke "{key}"{mods_clause}'],

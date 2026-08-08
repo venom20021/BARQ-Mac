@@ -35,12 +35,15 @@ class VoiceWSManager:
 
     _instance: VoiceWSManager | None = None
     _lock = asyncio.Lock()
+    _clients: set[WebSocket]
+    _bg_tasks: set[asyncio.Task]
+    _initialized: bool
 
     def __new__(cls) -> VoiceWSManager:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._clients: set[WebSocket] = set()
-            cls._instance._bg_tasks: set[asyncio.Task] = set()
+            cls._instance._clients = set()
+            cls._instance._bg_tasks = set()
             cls._instance._initialized = False
         return cls._instance
 

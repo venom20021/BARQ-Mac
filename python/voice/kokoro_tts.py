@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -133,7 +133,7 @@ class KokoroTTSEngine:
                 self._pipeline = await loop.run_in_executor(
                     None,
                     self._build_pipeline_sync,
-                )
+                )  # type: ignore[func-returns-value]
 
                 # Warmup: compile PyTorch JIT graph so first real call is instant
                 print("[KokoroTTS] Compiling (first-time warmup)...")
@@ -151,7 +151,7 @@ class KokoroTTSEngine:
                 self._pipeline = None
                 return False
 
-    def _build_pipeline_sync(self):
+    def _build_pipeline_sync(self) -> Any:
         """Build the Kokoro pipeline (blocking, run in thread)."""
         from pykokoro import build_pipeline
 

@@ -15,7 +15,7 @@ times out, an empty string is returned and the greeting proceeds normally.
 """
 
 import asyncio
-from typing import Optional
+from typing import Any, Optional
 
 
 async def _fetch_weather(city: str) -> str:
@@ -160,7 +160,7 @@ async def fetch_greeting_context(
         - "Looks like rain in London. Also, Bitcoin hits $68K." (both)
         - "" (nothing noteworthy, fall back to normal greeting)
     """
-    tasks = []
+    tasks: list[Any] = []
 
     if city:
         tasks.append(_fetch_weather(city))

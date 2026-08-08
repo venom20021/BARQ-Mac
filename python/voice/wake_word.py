@@ -15,7 +15,7 @@ import threading
 import urllib.error
 import urllib.request
 import wave
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from config import get_settings
 from utils.callback_guards import SyncCallback
@@ -56,7 +56,7 @@ HINDI_WAKE_PHRASES = [
 # Each preset: (hz1, hz2, split_ratio, duration_ms, volume)
 # split_ratio = where the tone transition happens (0.0-1.0)
 
-_SOUND_PROFILES = {
+_SOUND_PROFILES: dict[str, dict[str, Any]] = {
     "wake": {
         "hz1": 880,       # A5
         "hz2": 1320,      # E6 (ascending)
@@ -680,7 +680,7 @@ class WakeWordDetector:
                 except Exception:
                     self._last_mic_level = 0.0
 
-                if rec.AcceptWaveform(data_bytes):
+                if rec is not None and rec.AcceptWaveform(data_bytes):
                     result = json.loads(rec.Result())
                     text = result.get("text", "").lower().strip()
 

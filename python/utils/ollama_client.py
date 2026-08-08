@@ -41,8 +41,8 @@ class OllamaNotAvailableError(ConnectionError):
         # Parse host:port from URL
         try:
             clean_host = host.replace("http://", "").replace("https://", "")
-            hostname, port = clean_host.split(":")
-            port = int(port)
+            hostname, port_str = clean_host.split(":")
+            port = int(port_str)
         except (ValueError, AttributeError):
             hostname = host
             port = 11434

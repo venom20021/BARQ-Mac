@@ -16,7 +16,7 @@ import asyncio
 import os
 import threading
 import time
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import numpy as np
 import sounddevice as sd
@@ -138,11 +138,11 @@ class GeminiVoiceAgent(VoiceAgentBase):
                 tools = None
 
             config = types.LiveConnectConfig(
-                response_modalities=["AUDIO"],
-                output_audio_transcription={},
-                input_audio_transcription={},
+                response_modalities=cast(Any, ["AUDIO"]),
+                output_audio_transcription=cast(Any, {}),
+                input_audio_transcription=cast(Any, {}),
                 system_instruction=system_prompt,
-                tools=tools,
+                tools=cast(Any, tools),
                 speech_config=types.SpeechConfig(
                     voice_config=types.VoiceConfig(
                         prebuilt_voice_config=types.PrebuiltVoiceConfig(
@@ -346,6 +346,8 @@ class GeminiVoiceAgent(VoiceAgentBase):
         """
         while self._running:
             try:
+                if self._session is None:
+                    raise RuntimeError("Gemini session closed")
                 async for msg in self._session.receive():
                     self._receive_error_streak = 0
                     yield msg
@@ -731,7 +733,7 @@ def _install_gemini_assertion_guard():
 
         cls = _pe._ProactorBaseWritePipeTransport
         if _ORIG_LOOP_WRITING is None:
-            _ORIG_LOOP_WRITING = cls._loop_writing
+            _ORIG_LOOP_WRITING = cls._loop_writing  # type: ignore[attr-defined]
 
             def _safe_loop_writing(self, f=None, **kwargs):
                 try:
@@ -739,6 +741,6 @@ def _install_gemini_assertion_guard():
                 except AssertionError:
                     pass
 
-            cls._loop_writing = _safe_loop_writing
+            cls._loop_writing = _safe_loop_writing  # type: ignore[attr-defined]
     except Exception:
         pass

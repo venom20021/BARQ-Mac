@@ -146,6 +146,6 @@ async def _mirror_voice_commands(local_data: dict) -> None:
             if isinstance(voice, list) and voice:
                 remote[VOICE_COMMANDS_KEY] = voice
             await client.post(f"{url}/memory/agent-history", json={"history": remote})
-            print(f"[AgentHistory] Mirrored {len(voice)} voice commands to {url}")
+            print(f"[AgentHistory] Mirrored {len(voice or [])} voice commands to {url}")
     except Exception:
         pass  # remote unreachable — local copy already persisted

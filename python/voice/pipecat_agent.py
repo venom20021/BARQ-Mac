@@ -17,7 +17,7 @@ import collections
 import json
 import queue
 import time
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import numpy as np
 
@@ -91,7 +91,7 @@ def _install_proactor_assertion_guard():
         import asyncio.proactor_events as _pe
         cls = _pe._ProactorBaseWritePipeTransport
         if _ORIG_LOOP_WRITING is None:
-            _ORIG_LOOP_WRITING = cls._loop_writing
+            _ORIG_LOOP_WRITING = cls._loop_writing  # type: ignore[attr-defined]
 
             def _safe_loop_writing(self, f=None, **kwargs):
                 try:
@@ -99,7 +99,7 @@ def _install_proactor_assertion_guard():
                 except AssertionError:
                     pass  # benign — transport was likely closed
 
-            cls._loop_writing = _safe_loop_writing
+            cls._loop_writing = _safe_loop_writing  # type: ignore[attr-defined]
             print("[PipecatAgent] Installed Windows asyncio AssertionError guard")
     except Exception:
         pass  # Not on Windows or different Python version
@@ -237,12 +237,12 @@ class PipecatVoiceAgent(VoiceAgentBase):
         self._accumulated_samples = 0
 
         # Callbacks (set by ConversationListener)
-        self.on_interim_transcript: Optional[callable] = None
-        self.on_final_transcript: Optional[callable] = None
-        self.on_agent_speaking: Optional[callable] = None
-        self.on_agent_done_speaking: Optional[callable] = None
-        self.on_audio_chunk: Optional[callable] = None
-        self.on_agent_text: Optional[callable] = None
+        self.on_interim_transcript: Optional[Callable[..., Any]] = None
+        self.on_final_transcript: Optional[Callable[..., Any]] = None
+        self.on_agent_speaking: Optional[Callable[..., Any]] = None
+        self.on_agent_done_speaking: Optional[Callable[..., Any]] = None
+        self.on_audio_chunk: Optional[Callable[..., Any]] = None
+        self.on_agent_text: Optional[Callable[..., Any]] = None
 
         # User transcript buffer (accumulated between LLM calls)
         self._user_text_buffer: list[str] = []
@@ -794,7 +794,7 @@ class PipecatVoiceAgent(VoiceAgentBase):
         text_lower = text.lower().strip()
 
         # Map of keywords → function name + argument extractor
-        function_map = {
+        function_map: dict[str, tuple[str, dict]] = {
             "minimize": ("minimize_window", {}),
             "maximize": ("maximize_window", {}),
             "screenshot": ("take_screenshot", {}),
@@ -1035,7 +1035,7 @@ class PipecatVoiceAgent(VoiceAgentBase):
                 pcm_chunks: list[np.ndarray] = []
                 last_shape = "unknown"
 
-                for frame in input_file.decode(audio=0):
+                for frame in input_file.decode(audio=0):  # type: ignore[union-attr]
                     arr = frame.to_ndarray()  # shape varies: (C, T), (C, 1, T), or (C, T, 1)
                     last_shape = str(arr.shape)
 
@@ -1104,7 +1104,7 @@ class PipecatVoiceAgent(VoiceAgentBase):
             self.on_audio_chunk(pcm_float, TTS_SAMPLE_RATE)
 
         # Rate-limited capacity warning
-        usage = len(self._output_ring_buffer) / self._output_ring_buffer.maxlen
+        usage = len(self._output_ring_buffer) / (self._output_ring_buffer.maxlen or 1)
         if usage > 0.9:
             now = time.time()
             if now - self._output_log_timer > 1.0:
@@ -1124,5 +1124,5 @@ class PipecatVoiceAgent(VoiceAgentBase):
 def get_listener():
     """Get the active ConversationListener singleton (imported here
     to avoid circular imports at module level)."""
-    from .conversation_listener import conversation_listener
-    return conversation_listener
+    from .conversation_listener import get_listener as _get_listener
+    return _get_listener()

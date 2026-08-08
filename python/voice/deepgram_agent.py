@@ -25,7 +25,7 @@ import copy
 import json
 import queue
 import time
-from typing import Optional
+from typing import Any, Optional, cast
 
 import numpy as np
 
@@ -144,14 +144,14 @@ class DeepgramVoiceAgent(VoiceAgentBase):
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.settings = get_settings()
-        self._ws: Optional[any] = None  # websocket connection
+        self._ws: Optional[Any] = None  # websocket connection
         self._running = False
         self._settings_applied = asyncio.Event()
         # Wait for agent greeting to finish before sending mic audio
         self._can_send_audio = asyncio.Event()
-        self._input_stream: Optional[any] = None  # sd.InputStream
+        self._input_stream: Optional[Any] = None  # sd.InputStream
         self._send_task: Optional[asyncio.Task] = None
-        self._output_stream: Optional[any] = None  # sd.OutputStream (callback-based)
+        self._output_stream: Optional[Any] = None  # sd.OutputStream (callback-based)
         self._captured_text: list[str] = []
 
         # Thread-safe audio queues
@@ -395,7 +395,7 @@ class DeepgramVoiceAgent(VoiceAgentBase):
                 print(f"[DeepgramAgent] IPv4 TCP connected ({host_ip})")
                 self._ws = await ws_module.connect(
                     AGENT_WS_URL,
-                    subprotocols=["token", self.api_key],
+                    subprotocols=cast(Any, ["token", self.api_key]),
                     sock=sock,
                     server_hostname="agent.deepgram.com",
                 )
@@ -411,7 +411,7 @@ class DeepgramVoiceAgent(VoiceAgentBase):
                 print(f"[DeepgramAgent] IPv4 pre-connect failed ({dns_err}), falling back to default DNS")
                 self._ws = await ws_module.connect(
                     AGENT_WS_URL,
-                    subprotocols=["token", self.api_key],
+                    subprotocols=cast(Any, ["token", self.api_key]),
                 )
             print("[DeepgramAgent] WebSocket connected")
 
@@ -432,7 +432,7 @@ class DeepgramVoiceAgent(VoiceAgentBase):
                 return False
 
             # ── Step 2: Inject function schemas into settings ──────
-            settings_payload = copy.deepcopy(AGENT_SETTINGS)
+            settings_payload: dict = copy.deepcopy(AGENT_SETTINGS)
             function_schemas = get_function_schemas()
             if function_schemas:
                 think_cfg = settings_payload.setdefault("agent", {}).setdefault("think", {})
@@ -718,7 +718,8 @@ class DeepgramVoiceAgent(VoiceAgentBase):
                         lambda: self._audio_queue.get(timeout=0.1),
                     )
                     audio_bytes = data.tobytes()
-                    await self._ws.send(audio_bytes)
+                    if self._ws is not None:
+                        await self._ws.send(audio_bytes)
                 except queue.Empty:
                     continue
                 except Exception as e:
@@ -860,7 +861,7 @@ class DeepgramVoiceAgent(VoiceAgentBase):
         self._output_ring_buffer.extend(pcm_array)
 
         # Rate-limited log if ring buffer is near capacity
-        ring_usage = len(self._output_ring_buffer) / self._output_ring_buffer.maxlen
+        ring_usage = len(self._output_ring_buffer) / (self._output_ring_buffer.maxlen or 1)
         if ring_usage > 0.9:
             now = time.time()
             if now - self._output_log_timer > 1.0:

@@ -7,7 +7,7 @@ The default is ``"gemini"`` (requires GEMINI_API_KEY).
 """
 
 import os
-from typing import Optional
+from typing import Any, Optional
 
 from config import get_settings
 
@@ -16,7 +16,7 @@ _voice_agent_instance = None
 _voice_agent_backend: Optional[str] = None
 
 
-def get_available_backends() -> list[dict[str, str]]:
+def get_available_backends() -> list[dict[str, Any]]:
     """Return metadata about all available voice agent backends."""
     return [
         {
@@ -94,7 +94,7 @@ def get_voice_agent(backend: Optional[str] = None):
         return _voice_agent_instance
 
     # Create new instance
-    _voice_agent_instance = _create_agent(resolved)
+    _voice_agent_instance = _create_agent(resolved or "gemini")
     _voice_agent_backend = resolved
     print(f"[AgentFactory] Created voice agent: {resolved}")
     return _voice_agent_instance
