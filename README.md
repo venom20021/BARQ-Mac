@@ -1,5 +1,10 @@
 # BARQ - Voice-Controlled AI Desktop Assistant
 
+![CI](https://img.shields.io/github/actions/workflow/status/venom20021/B.A.R-Q-AI/ci.yml?branch=master&label=CI&logo=github)
+![Deploy](https://img.shields.io/github/actions/workflow/status/venom20021/B.A.R-Q-AI/deploy.yml?branch=master&label=Deploy&logo=github)
+![Release](https://img.shields.io/github/v/release/venom20021/B.A.R-Q-AI?label=Release&logo=github)
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+
 **BARQ** is a voice-first AI desktop assistant that combines wake word detection, natural language understanding, and automation into a single, cross-platform application. Think Alexa for your computer — control apps, search jobs, create content, and more, all by voice.
 
 Built with **Python (FastAPI)** for the backend and **Electron + React** for the desktop UI, BARQ runs on **macOS** and **Windows**.
@@ -81,6 +86,7 @@ Built with **Python (FastAPI)** for the backend and **Electron + React** for the
 - **One-click installer** — `npm run package` produces `BARQ-<version>-Setup-x64.exe` (NSIS, unsigned dev builds) with the BARQ logo
 - **Self-updating** — Installed apps check GitHub Releases on launch via `electron-updater`: auto-downloads new versions and shows an **UpdateToast** with live download progress + a **Restart & Install** button
 - **Release pipeline** — `npm run package:publish` uploads the installer + `latest.yml` feed to a GitHub Release (needs `GH_TOKEN`); any future version bump flows to installed apps automatically
+- **v1.0.1 is live** — the update feed (`latest.yml` + installer + blockmap) is published on [GitHub Releases](https://github.com/venom20021/B.A.R-Q-AI/releases/tag/v1.0.1); installed apps self-update over it
 - **Update feed** — `dist/latest.yml` (sha512 + size) is verified before install, with differential `.blockmap` support
 
 ### ☁️ Cloud Mode (Oracle VM Backend)
@@ -541,6 +547,7 @@ BARQ is designed to run on both **macOS** and **Windows**.
 
 ### CI/CD
 GitHub Actions runs linting, type-checking, building, and Python tests on every push, then auto-deploys the backend to the Oracle VM.
+The **Python checks (ruff + mypy)** job is fully green — ruff pinned to `0.15.21` and mypy passes on `python/ai`, `python/voice`, and `python/utils`.
 
 ---
 

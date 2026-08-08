@@ -2357,10 +2357,10 @@ async def _execute_command_action(text: str, parsed: dict) -> str:
             system = _platform.system().lower()
             if system == "windows":
                 import ctypes
-                ctypes.windll.user32.keybd_event(0x5B, 0, 0, 0)  # Win key down
-                ctypes.windll.user32.keybd_event(0x44, 0, 0, 0)  # D down
-                ctypes.windll.user32.keybd_event(0x44, 0, 2, 0)  # D up
-                ctypes.windll.user32.keybd_event(0x5B, 0, 2, 0)  # Win key up
+                ctypes.windll.user32.keybd_event(0x5B, 0, 0, 0)  # type: ignore[attr-defined]  # Win key down
+                ctypes.windll.user32.keybd_event(0x44, 0, 0, 0)  # type: ignore[attr-defined]  # D down
+                ctypes.windll.user32.keybd_event(0x44, 0, 2, 0)  # type: ignore[attr-defined]  # D up
+                ctypes.windll.user32.keybd_event(0x5B, 0, 2, 0)  # type: ignore[attr-defined]  # Win key up
             else:
                 import subprocess
                 subprocess.run(["osascript", "-e", 'tell app "Finder" to activate'], capture_output=True, timeout=5)

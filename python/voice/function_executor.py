@@ -75,7 +75,7 @@ def _minimize_window(window_name: str | None = None) -> dict[str, Any]:
             return {"status": "error", "detail": f"No window found with title '{window_name}'"}
         else:
             import ctypes
-            user32 = ctypes.windll.user32
+            user32 = ctypes.windll.user32  # type: ignore[attr-defined]
             user32.ShowWindow(user32.GetForegroundWindow(), 6)  # SW_MINIMIZE
             return {"status": "success", "detail": "Active window minimized"}
     elif IS_MACOS:
@@ -111,7 +111,7 @@ def _maximize_window(window_name: str | None = None) -> dict[str, Any]:
             return {"status": "error", "detail": f"No window found with title '{window_name}'"}
         else:
             import ctypes
-            user32 = ctypes.windll.user32
+            user32 = ctypes.windll.user32  # type: ignore[attr-defined]
             user32.ShowWindow(user32.GetForegroundWindow(), 3)  # SW_MAXIMIZE
             return {"status": "success", "detail": "Active window maximized"}
     elif IS_MACOS:
@@ -135,7 +135,7 @@ def _open_file(file_path: str) -> dict[str, Any]:
         return {"status": "error", "detail": f"Path not found: {path}"}
     try:
         if IS_WINDOWS:
-            os.startfile(str(path))
+            os.startfile(str(path))  # type: ignore[attr-defined]
         elif IS_MACOS:
             subprocess.run(["open", str(path)], check=True)
         else:
@@ -441,7 +441,7 @@ def _focus_window(window_name: str) -> dict[str, Any]:
             # Fallback: use ctypes to enumerate windows
             try:
                 import ctypes
-                user32 = ctypes.windll.user32
+                user32 = ctypes.windll.user32  # type: ignore[attr-defined]
                 # Find window by title using FindWindowW
                 handle = user32.FindWindowW(None, window_name)
                 if handle:
@@ -582,7 +582,7 @@ def _mute_volume(mute: bool = True) -> dict[str, Any]:
         except ImportError:
             # Fallback: VK_VOLUME_MUTE virtual key
             import ctypes
-            user32 = ctypes.windll.user32
+            user32 = ctypes.windll.user32  # type: ignore[attr-defined]
             # Simulate mute key press
             VK_VOLUME_MUTE = 0xAD
             user32.keybd_event(VK_VOLUME_MUTE, 0, 0, 0)  # Key down
@@ -642,7 +642,7 @@ def _media_control(action: str = "play_pause") -> dict[str, Any]:
 
     if IS_WINDOWS:
         import ctypes
-        user32 = ctypes.windll.user32
+        user32 = ctypes.windll.user32  # type: ignore[attr-defined]
 
         # Virtual key codes for media controls
         VK_MEDIA_PLAY_PAUSE = 0xB3
@@ -707,7 +707,7 @@ def _empty_trash() -> dict[str, Any]:
         try:
             # Use SHEmptyRecycleBinW via ctypes
             import ctypes
-            shell32 = ctypes.windll.shell32
+            shell32 = ctypes.windll.shell32  # type: ignore[attr-defined]
             # SHERB_NOCONFIRMATION = 0x1, SHERB_NOPROGRESSUI = 0x2, SHERB_NOSOUND = 0x4
             flags = 0x1 | 0x2 | 0x4  # No confirmation, no progress UI, no sound
             result = shell32.SHEmptyRecycleBinW(None, None, flags)
@@ -745,7 +745,7 @@ def _lock_screen() -> dict[str, Any]:
     if IS_WINDOWS:
         try:
             import ctypes
-            user32 = ctypes.windll.user32
+            user32 = ctypes.windll.user32  # type: ignore[attr-defined]
             # LockWorkStation locks the screen
             result = user32.LockWorkStation()
             if result:
