@@ -633,6 +633,13 @@ class PythonSidecar {
       if (process.platform === 'win32') {
         return this.findWindowsPython()
       }
+      // BARQ-Mac: prefer the project venv (has all deps: playwright, vosk,
+      // torch...) over bare system python3, which crashes the sidecar on boot.
+      const venvPython = join(this.getWorkingDir(), '.venv', 'bin', 'python')
+      if (existsSync(venvPython)) {
+        console.log(`[PythonSidecar] Using project venv: ${venvPython}`)
+        return venvPython
+      }
       return 'python3'
     } else {
       const resourcesPath = join(process.resourcesPath, 'python')
