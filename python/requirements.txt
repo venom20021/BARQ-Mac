@@ -53,7 +53,7 @@ pyautogui>=0.9.54
 pynput>=1.7.7
 
 # Desktop Automation
-mss>=9.0.1
+mss>=10.2.0
 pytesseract>=0.3.13
 easyocr>=1.7.2
 
