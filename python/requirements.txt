@@ -34,7 +34,7 @@ pillow>=11.0.0
 numpy>=1.26.0
 
 # Social API Clients
-google-api-python-client>=2.149.0
+google-api-python-client>=2.199.0
 google-auth-oauthlib>=1.2.1
 tweepy>=4.14.0
 
