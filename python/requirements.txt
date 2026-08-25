@@ -15,7 +15,7 @@ playwright>=1.48.0
 beautifulsoup4>=4.12.3
 lxml>=5.3.0
 httpx>=0.27.0
-python-jobspy>=1.1.0   # Stealth job scraper (LinkedIn, Indeed, Glassdoor, ZipRecruiter, Google)
+python-jobspy>=1.1.82   # Stealth job scraper (LinkedIn, Indeed, Glassdoor, ZipRecruiter, Google)
 
 # Data Processing
 pydantic>=2.9.0
