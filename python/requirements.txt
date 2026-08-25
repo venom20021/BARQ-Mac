@@ -108,5 +108,5 @@ pypdf>=5.0
 google-genai>=1.0.0
 
 # Knowledge Graph
-networkx>=3.2.1
+networkx>=3.6.1
 aiogram
