@@ -68,3 +68,30 @@ nul
 *.exe
 *.AppImage
 .gstack/
+.gstack-design-audit/
+
+# Stray/temp/junk (cleaned from repo — keep untracked)
+screenshot.png
+live-captions-preview.html
+electron.vite.config.*.mjs
+auth
+auth-wal
+auth-shm
+logs/watchdog.lock
+*.last-run.json
+.backup/
+python/~
+python/palindrome.py
+python/pallindrom.py
+python/pallindrome_code.cpp
+python/quantum_computing_notes.txt
+python/_check_opt.py
+python/_check_optimizer.py
+python/_fix_duplicate.py
+python/_add_job_modal.py
+python/_build_followup_panel.py
+python/_notif_section.txt
+scripts/_demo_*.py
+
+# Backup files
+*.bak

@@ -1,5 +1,0 @@
-{'results': [], 'query': 'quantum computing', 'count': 0}
-
----
-
-{'results': [], 'query': 'best resources for learning quantum computing', 'count': 0}

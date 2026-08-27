@@ -1,1 +1,0 @@
-{'results': [], 'query': 'c++ palindrome program', 'count': 0}
