@@ -68,7 +68,7 @@ av>=14.0.0
 # Web & Media
 spotipy>=2.24.0
 yfinance>=0.2.41
-openai>=1.51.0
+openai>=3.5.0
 
 # Document Generation
 python-pptx>=1.0.0
