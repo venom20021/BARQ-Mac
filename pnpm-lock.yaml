@@ -10,13 +10,13 @@ importers:
     dependencies:
       '@react-three/drei':
         specifier: ^9.122.0
-        version: 9.122.0(@react-three/fiber@8.18.0(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.185.1))(@types/react@18.3.31)(@types/three@0.185.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.185.1)(use-sync-external-store@1.6.0(react@18.3.1))
+        version: 9.122.0(@react-three/fiber@8.18.0(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.185.1))(@types/react@18.3.31)(@types/three@0.185.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.185.1)(use-sync-external-store@1.6.0(react@18.3.1))
       '@react-three/fiber':
         specifier: ^8.18.0
         version: 8.18.0(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.185.1)
       '@react-three/postprocessing':
         specifier: ^3.0.4
-        version: 3.0.4(@react-three/fiber@8.18.0(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.185.1))(@types/three@0.185.0)(react@18.3.1)(three@0.185.1)
+        version: 3.0.4(@react-three/fiber@8.18.0(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.185.1))(@types/three@0.185.4)(react@18.3.1)(three@0.185.1)
       '@tsparticles/react':
         specifier: ^3.0.0
         version: 3.0.0(@tsparticles/engine@3.9.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -75,6 +75,9 @@ importers:
       '@types/react-dom':
         specifier: ^18.3.0
         version: 18.3.7(@types/react@18.3.31)
+      '@types/three':
+        specifier: ^0.185.4
+        version: 0.185.4
       '@typescript-eslint/eslint-plugin':
         specifier: ^8.62.1
         version: 8.62.1(@typescript-eslint/parser@8.62.1(eslint@9.39.4(jiti@1.21.7)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3))(eslint@9.39.4(jiti@1.21.7)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)
@@ -84,6 +87,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^4.3.1
         version: 4.7.0(supports-color@7.2.0)(vite@5.4.21(@types/node@26.1.2))
+      agentation:
+        specifier: ^3.0.2
+        version: 3.0.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       autoprefixer:
         specifier: ^10.4.20
         version: 10.5.2(postcss@8.5.16)
@@ -1157,9 +1163,6 @@ packages:
   '@types/node@20.19.43':
     resolution: {integrity: sha512-6oYBAi5ikg4Pl+kGsoYtawUMBT2zZMCvPNF7pVLnHZfd1zf38DRiWn/gT01RYCdUqkv7Fhr+C9ot4/tb+2sVvA==}
 
-  '@types/node@26.1.0':
-    resolution: {integrity: sha512-O0A1G3xPGy4w7AgQdAQYUlQ+BKk2Oovw8eRpofyp5KdBZULnbe+WqaOVNrm705SHphCiG4XHsACrSmPu1f+Kgw==}
-
   '@types/node@26.1.2':
     resolution: {integrity: sha512-Vu4a5UFA9rIIFJ7rB/Vaafh9lrCQszopTCx6KjFboXTGQbPNasehVR5TEiithSDGyd1DEiUByggTZsg8jukeIg==}
 
@@ -1194,8 +1197,8 @@ packages:
   '@types/stats.js@0.17.4':
     resolution: {integrity: sha512-jIBvWWShCvlBqBNIZt0KAshWpvSjhkwkEu4ZUcASoAvhmrgAUI2t1dXrjSL4xXVLB4FznPrIsX3nKXFl/Dt4vA==}
 
-  '@types/three@0.185.0':
-    resolution: {integrity: sha512-O2Uy8Cj4Nonr8dWUUbifMdPe8B0Mq7EdOHb89S4+kjUw/KhbjTZrUuYlrQ1bpUKG+EP9QJnN7qNxbHGlGoLHMA==}
+  '@types/three@0.185.4':
+    resolution: {integrity: sha512-gAsBIC07NIFrxjbf7tH2t71c38uulFfk/RFoC7FNBSjMRAQ8J1x/RBvusX0N5PJouaYFJawXQqfCQ0RKUx/1nA==}
 
   '@types/verror@1.10.11':
     resolution: {integrity: sha512-RlDm9K7+o5stv0Co8i8ZRGxDbrTxhJtgjqjFyVh/tXQyl/rYtTKlnTvZ88oSTeYREWurwx20Js4kTuKCsFkUtg==}
@@ -1342,6 +1345,17 @@ packages:
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
+
+  agentation@3.0.2:
+    resolution: {integrity: sha512-iGzBxFVTuZEIKzLY6AExSLAQH6i6SwxV4pAu7v7m3X6bInZ7qlZXAwrEqyc4+EfP4gM7z2RXBF6SF4DeH0f2lA==}
+    peerDependencies:
+      react: '>=18.0.0'
+      react-dom: '>=18.0.0'
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-dom:
+        optional: true
 
   agentkeepalive@4.6.0:
     resolution: {integrity: sha512-kja8j7PjmncONqaTsB8fQ+wE2mSU2DJ9D4XKoJ5PFWIdRMa6SLSN1ff4mOr4jCbfRSsxR4keIiySJU0N9T5hIQ==}
@@ -2045,6 +2059,7 @@ packages:
   eslint@9.39.4:
     resolution: {integrity: sha512-XoMjdBOwe/esVgEvLmNsD3IRHkm7fbKIUGvrleloJXUZgDHig2IPWNniv+GwjyJXzuNqVjlr5+4yVUZjycJwfQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -4355,7 +4370,7 @@ snapshots:
 
   '@react-spring/types@9.7.5': {}
 
-  '@react-three/drei@9.122.0(@react-three/fiber@8.18.0(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.185.1))(@types/react@18.3.31)(@types/three@0.185.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.185.1)(use-sync-external-store@1.6.0(react@18.3.1))':
+  '@react-three/drei@9.122.0(@react-three/fiber@8.18.0(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.185.1))(@types/react@18.3.31)(@types/three@0.185.4)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.185.1)(use-sync-external-store@1.6.0(react@18.3.1))':
     dependencies:
       '@babel/runtime': 7.29.7
       '@mediapipe/tasks-vision': 0.10.17
@@ -4368,11 +4383,11 @@ snapshots:
       detect-gpu: 5.0.70
       glsl-noise: 0.0.0
       hls.js: 1.6.16
-      maath: 0.10.8(@types/three@0.185.0)(three@0.185.1)
+      maath: 0.10.8(@types/three@0.185.4)(three@0.185.1)
       meshline: 3.3.1(three@0.185.1)
       react: 18.3.1
       react-composer: 5.0.3(react@18.3.1)
-      stats-gl: 2.4.2(@types/three@0.185.0)(three@0.185.1)
+      stats-gl: 2.4.2(@types/three@0.185.4)(three@0.185.1)
       stats.js: 0.17.0
       suspend-react: 0.1.3(react@18.3.1)
       three: 0.185.1
@@ -4410,10 +4425,10 @@ snapshots:
     transitivePeerDependencies:
       - '@types/react'
 
-  '@react-three/postprocessing@3.0.4(@react-three/fiber@8.18.0(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.185.1))(@types/three@0.185.0)(react@18.3.1)(three@0.185.1)':
+  '@react-three/postprocessing@3.0.4(@react-three/fiber@8.18.0(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.185.1))(@types/three@0.185.4)(react@18.3.1)(three@0.185.1)':
     dependencies:
       '@react-three/fiber': 8.18.0(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.185.1)
-      maath: 0.6.0(@types/three@0.185.0)(three@0.185.1)
+      maath: 0.6.0(@types/three@0.185.4)(three@0.185.1)
       n8ao: 1.10.2(postprocessing@6.39.2(three@0.185.1))(three@0.185.1)
       postprocessing: 6.39.2(three@0.185.1)
       react: 18.3.1
@@ -4838,7 +4853,7 @@ snapshots:
 
   '@types/fs-extra@9.0.13':
     dependencies:
-      '@types/node': 26.1.0
+      '@types/node': 26.1.2
 
   '@types/http-cache-semantics@4.2.0': {}
 
@@ -4854,10 +4869,6 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
-  '@types/node@26.1.0':
-    dependencies:
-      undici-types: 8.3.0
-
   '@types/node@26.1.2':
     dependencies:
       undici-types: 8.3.0
@@ -4866,7 +4877,7 @@ snapshots:
 
   '@types/plist@3.0.5':
     dependencies:
-      '@types/node': 26.1.0
+      '@types/node': 26.1.2
       xmlbuilder: 15.1.1
     optional: true
 
@@ -4895,7 +4906,7 @@ snapshots:
 
   '@types/stats.js@0.17.4': {}
 
-  '@types/three@0.185.0':
+  '@types/three@0.185.4':
     dependencies:
       '@dimforge/rapier3d-compat': 0.12.0
       '@tweenjs/tween.js': 23.1.3
@@ -5090,6 +5101,11 @@ snapshots:
       - supports-color
 
   agent-base@7.1.4: {}
+
+  agentation@3.0.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+    optionalDependencies:
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
 
   agentkeepalive@4.6.0:
     dependencies:
@@ -6595,14 +6611,14 @@ snapshots:
 
   lz-string@1.5.0: {}
 
-  maath@0.10.8(@types/three@0.185.0)(three@0.185.1):
+  maath@0.10.8(@types/three@0.185.4)(three@0.185.1):
     dependencies:
-      '@types/three': 0.185.0
+      '@types/three': 0.185.4
       three: 0.185.1
 
-  maath@0.6.0(@types/three@0.185.0)(three@0.185.1):
+  maath@0.6.0(@types/three@0.185.4)(three@0.185.1):
     dependencies:
-      '@types/three': 0.185.0
+      '@types/three': 0.185.4
       three: 0.185.1
 
   magic-string@0.30.21:
@@ -7302,9 +7318,9 @@ snapshots:
 
   stat-mode@1.0.0: {}
 
-  stats-gl@2.4.2(@types/three@0.185.0)(three@0.185.1):
+  stats-gl@2.4.2(@types/three@0.185.4)(three@0.185.1):
     dependencies:
-      '@types/three': 0.185.0
+      '@types/three': 0.185.4
       three: 0.185.1
 
   stats.js@0.17.0: {}

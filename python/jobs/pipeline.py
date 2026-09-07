@@ -25,11 +25,14 @@ from typing import Any, Optional
 
 logger = logging.getLogger("barq.pipeline")
 
+from config import get_settings  # noqa: E402
 from database import analytics_dao, jobs_dao  # noqa: E402
 from knowledge.auto_extractor import AutoExtractor  # noqa: E402
 from utils import safe_filename  # noqa: E402
 
-from .applier import JobApplier  # noqa: E402
+# Lazy-load CONFIG for Telegram settings
+CONFIG = None
+
 from .cover_letter import CoverLetterGenerator  # noqa: E402
 from .optimizer import ResumeOptimizer  # noqa: E402
 from .pdf_generator import (  # noqa: E402
@@ -49,6 +52,9 @@ DEFAULT_SETTINGS = {
     "generate_pdf": True,       # Generate PDF copies of resume and cover letter
     "send_telegram": True,      # Send Telegram notification with job link + docs
     "min_match_score": 60,      # Minimum match percentage to process
+    "use_dynamic_resume": True,  # Use DynamicResumeBuilder (3-tier fallback) for tailored resumes
+    # Retry: auto-retry failed jobs on next run (max retries)
+    "max_retries": 3,
     # Evaluator-Optimizer gate (Reflection pattern) — evaluates generated
     # resumes/cover letters against the JD and forces revisions below threshold.
     "enable_evaluator": True,
@@ -174,7 +180,20 @@ async def run_pipeline(settings: Optional[dict[str, Any]] = None) -> dict[str, A
             "ready_for_review", limit=cfg["max_per_run"], exclude_notified=True
         )
 
-        all_apps = queued + approved + review
+        # Also get failed jobs that are retryable (retry_count < max_retries)
+        max_retries = cfg.get("max_retries", 3)
+        retryable = await jobs_dao.get_applications_by_status(
+            "failed", limit=cfg["max_per_run"], exclude_notified=True
+        )
+        # Filter to only retryable jobs
+        retryable = [
+            app for app in retryable
+            if (app.get("retry_count") or 0) < max_retries
+        ]
+        if retryable:
+            print(f"[Pipeline] Found {len(retryable)} retryable failed jobs (retry_count < {max_retries})")
+
+        all_apps = queued + approved + review + retryable
 
         # Deduplicate by job_listing_id
         seen_ids = set()
@@ -215,7 +234,29 @@ async def run_pipeline(settings: Optional[dict[str, Any]] = None) -> dict[str, A
         optimizer = ResumeOptimizer()
         cover_gen = CoverLetterGenerator()
         pdf_gen = ResumePDFGenerator()
-        applier = JobApplier()
+
+        # Lazy-import auto_apply engine (requires playwright + aiogram)
+        _application_engine = None
+        if cfg["auto_apply"]:
+            try:
+                import importlib
+                _engine_mod = importlib.import_module("jobs.auto_applier.applier.engine")
+                _application_engine = _engine_mod.ApplicationEngine()
+                print("[Pipeline] ApplicationEngine loaded for auto-apply")
+            except ImportError as e:
+                print(f"[Pipeline] ⚠️ ApplicationEngine unavailable ({e}) — auto-apply disabled")
+                cfg["auto_apply"] = False
+
+        # Lazy-import DynamicResumeBuilder for 3-tier resume generation
+        _dynamic_builder = None
+        if cfg.get("use_dynamic_resume", True):
+            try:
+                import importlib
+                _builder_mod = importlib.import_module("jobs.auto_applier.resume.dynamic_builder")
+                _dynamic_builder = _builder_mod.DynamicResumeBuilder()
+                print("[Pipeline] DynamicResumeBuilder loaded (3-tier fallback)")
+            except ImportError as e:
+                print(f"[Pipeline] ⚠️ DynamicResumeBuilder unavailable ({e}) — using base resume")
 
         # ── Phases 3-6: Process Each Job ─────────────────────────────
         for idx, app in enumerate(filtered_apps):
@@ -244,6 +285,21 @@ async def run_pipeline(settings: Optional[dict[str, Any]] = None) -> dict[str, A
             }
 
             try:
+                # ── Check if URL should be skipped (EvoMap feedback loop) ──
+                if source_url:
+                    try:
+                        import importlib
+                        evo_mod = importlib.import_module("jobs.auto_applier.failure.evo_logger")
+                        evo = evo_mod.EvoLogger()
+                        if evo.should_skip_url(source_url):
+                            print(f"[Pipeline] ⏭️ Skipping {job_title} @ {company} — URL has 3+ failures (EvoMap)")
+                            app_result["status"] = "skipped"
+                            app_result["error"] = "Skipped: URL has 3+ consecutive failures"
+                            _pipeline_state["jobs_processed"] += 1
+                            continue
+                    except ImportError:
+                        pass  # EvoLogger unavailable, don't skip
+
                 # ── Phase 3: Optimize Resume ──────────────────────────
                 pct_base = 15 + (idx / max(len(filtered_apps), 1)) * 60
                 _pipeline_state["phase"] = PHASES[2]
@@ -267,6 +323,33 @@ async def run_pipeline(settings: Optional[dict[str, Any]] = None) -> dict[str, A
                         }
                     except (json.JSONDecodeError, TypeError):
                         pass
+
+                # ── DynamicResumeBuilder: Generate tailored resume PDF (3-tier fallback) ──
+                # This runs BEFORE the LLM optimizer — it produces a job-specific PDF
+                # using: BARQ native → AI_Resume_Generator → static fallback.
+                dynamic_resume_path = None
+                if _dynamic_builder:
+                    try:
+                        dr_result = await asyncio.wait_for(
+                            _dynamic_builder.build(
+                                job_description=job.get("description", ""),
+                                job_title=job_title,
+                                company=company,
+                                timeout=60,
+                            ),
+                            timeout=90,
+                        )
+                        if dr_result.pdf_path and dr_result.status != "error":
+                            dynamic_resume_path = dr_result.pdf_path
+                            app_result["dynamic_resume_path"] = dynamic_resume_path
+                            app_result["dynamic_resume_source"] = dr_result.source
+                            print(f"[Pipeline] DynamicResumeBuilder: {dr_result.status} ({dr_result.source}) — {dynamic_resume_path}")
+                        else:
+                            print(f"[Pipeline] DynamicResumeBuilder returned no PDF: {dr_result.error or dr_result.status}")
+                    except asyncio.TimeoutError:
+                        print(f"[Pipeline] ⏱️ DynamicResumeBuilder timed out for {job_title}")
+                    except Exception as dr_err:
+                        print(f"[Pipeline] ⚠️ DynamicResumeBuilder error: {dr_err}")
 
                 # ── Phase 3: Try structured JSON optimization first, fall back to markdown ──
                 # The LLM outputs ONLY a JSON object (no LaTeX). The PDF generator
@@ -379,7 +462,14 @@ async def run_pipeline(settings: Optional[dict[str, Any]] = None) -> dict[str, A
 
                 if cfg["generate_pdf"]:
                     # ── Resume PDF ────────────────────────────────────
-                    if llm_json_data:
+                    # Priority: dynamic_resume_path (3-tier) > LLM JSON → LaTeX > markdown → fpdf
+                    if dynamic_resume_path and os.path.isfile(dynamic_resume_path):
+                        # DynamicResumeBuilder already produced a PDF — use it directly
+                        pdf_paths["resume"] = dynamic_resume_path
+                        with open(dynamic_resume_path, "rb") as f:
+                            pdf_bytes_dict["resume"] = f.read()
+                        print(f"[Pipeline] Using DynamicResumeBuilder PDF for {job_title} ({len(pdf_bytes_dict['resume'])} bytes)")
+                    elif llm_json_data:
                         # Build LaTeX from structured JSON → compile PDF (in-memory → disk)
                         # The JSON is injected into the hardcoded template — the LLM
                         # never produces raw LaTeX, preventing malformed compilation.
@@ -469,6 +559,10 @@ async def run_pipeline(settings: Optional[dict[str, Any]] = None) -> dict[str, A
                         "cover_letter_generated": bool(cover_letter),
                         "pdf_generated": bool(pdf_paths),
                         "match_percentage": match_pct,
+                        "dynamic_resume": {
+                            "path": dynamic_resume_path or "",
+                            "source": app_result.get("dynamic_resume_source", ""),
+                        } if dynamic_resume_path else None,
                         "evaluator": {
                             "enabled": cfg["enable_evaluator"],
                             "resume_score": eval_report.get("final_score"),
@@ -530,19 +624,25 @@ async def run_pipeline(settings: Optional[dict[str, Any]] = None) -> dict[str, A
                         pdf_bytes=pdf_bytes_dict,  # In-memory bytes for sendDocument
                     )
 
-                if cfg["auto_apply"] and source_url:
-                    user_profile = {
-                        "full_name": resume.get("full_name", ""),
-                        "email": resume.get("email", ""),
-                        "phone": resume.get("phone", ""),
-                        "linkedin_url": resume.get("linkedin_url", ""),
-                        "skills": resume.get("skills", []),
-                    }
-                    auto_apply_result = await applier.auto_fill_application(
-                        source_url, user_profile, pdf_paths.get("resume")
-                    )
-                    auto_applied = auto_apply_result.get("status") == "completed"
-                    app_result["auto_apply_result"] = auto_apply_result
+                if cfg["auto_apply"] and source_url and _application_engine:
+                    # Use ApplicationEngine for browser-based auto-apply
+                    # Pass the best available resume: dynamic > PDF > base
+                    resume_for_apply = dynamic_resume_path or pdf_paths.get("resume")
+                    try:
+                        auto_apply_result = await _application_engine.apply_to_job(
+                            job_url=source_url,
+                            company=company,
+                            title=job_title,
+                            job_context=job.get("description", ""),
+                            resume_path=resume_for_apply,
+                        )
+                        auto_applied = auto_apply_result.get("submitted", False)
+                        app_result["auto_apply_result"] = auto_apply_result
+                        print(f"[Pipeline] ApplicationEngine result: submitted={auto_applied}, status={auto_apply_result.get('status')}")
+                    except Exception as ae_err:
+                        print(f"[Pipeline] ⚠️ ApplicationEngine error: {ae_err}")
+                        auto_apply_result = {"status": "error", "error": str(ae_err)}
+                        app_result["auto_apply_result"] = auto_apply_result
 
                 # Mark application as submitted or ready_for_review.
                 # notified_at is stamped when a notification was actually sent
@@ -603,6 +703,21 @@ async def run_pipeline(settings: Optional[dict[str, Any]] = None) -> dict[str, A
                 app_result["error"] = str(e)
                 _pipeline_state["jobs_failed"] += 1
                 results.append(app_result)
+
+                # Increment retry_count for this application
+                try:
+                    current_retry = app.get("retry_count") or 0
+                    await jobs_dao.update_application_status(
+                        app["id"],
+                        "failed",
+                        notes=json.dumps({
+                            "error": str(e)[:500],
+                            "retry_count": current_retry + 1,
+                            "last_failed_at": datetime.now(timezone.utc).isoformat(),
+                        }),
+                    )
+                except Exception as retry_err:
+                    print(f"[Pipeline] Failed to update retry_count: {retry_err}")
 
             _pipeline_state["jobs_processed"] += 1
 
@@ -675,10 +790,24 @@ async def _send_telegram_notification(
     NO raw text dumps, NO "Part 1/3" chunking, NO raw HTML tags leaking.
     """
     try:
-        from notifications.telegram import TelegramChannel
+        # Use the unified aiogram bot for all Telegram operations
+        import importlib
+        bot_mod = importlib.import_module("jobs.auto_applier.telegram.bot")
+        telegram = bot_mod.AutoApplyBot()
 
-        telegram = TelegramChannel()
-        if not await telegram.is_enabled():
+        # Get Telegram config
+        global CONFIG
+        if CONFIG is None:
+            try:
+                settings = get_settings()
+                CONFIG = type('Config', (), {
+                    'telegram_bot_token': getattr(settings, 'telegram_bot_token', ''),
+                    'telegram_chat_id': getattr(settings, 'telegram_chat_id', ''),
+                })()
+            except Exception:
+                CONFIG = type('Config', (), {'telegram_bot_token': '', 'telegram_chat_id': ''})()
+
+        if not CONFIG.telegram_bot_token or not CONFIG.telegram_chat_id:
             print("[Pipeline] Telegram not configured; skipping detailed notification")
             return False
 
@@ -726,7 +855,7 @@ async def _send_telegram_notification(
                 filename=resume_label,
                 caption=resume_caption,
             )
-            if doc_result.success:
+            if getattr(doc_result, 'success', None) or doc_result.get('success'):
                 pdfs_sent += 1
         elif paths.get("resume") and os.path.isfile(paths["resume"]):
             # File-based fallback
@@ -734,7 +863,7 @@ async def _send_telegram_notification(
                 document_path=paths["resume"],
                 caption=resume_caption,
             )
-            if doc_result.success:
+            if getattr(doc_result, 'success', None) or doc_result.get('success'):
                 pdfs_sent += 1
 
         # ── Cover Letter PDF ──────────────────────────────────────────
@@ -750,7 +879,7 @@ async def _send_telegram_notification(
                 filename=cl_label,
                 caption=cl_caption,
             )
-            if doc_result.success:
+            if getattr(doc_result, 'success', None) or doc_result.get('success'):
                 pdfs_sent += 1
         elif paths.get("cover_letter") and os.path.isfile(paths["cover_letter"]) and paths["cover_letter"].endswith(".pdf"):
             # File-based fallback
@@ -758,7 +887,7 @@ async def _send_telegram_notification(
                 document_path=paths["cover_letter"],
                 caption=cl_caption,
             )
-            if doc_result.success:
+            if getattr(doc_result, 'success', None) or doc_result.get('success'):
                 pdfs_sent += 1
 
         # 3. Send CONCISE summary — NO resume dump, NO cover letter text
@@ -807,8 +936,9 @@ async def _send_telegram_notification(
             disable_notification=(match_pct < 80),
         )
 
-        if not result.success:
-            print(f"[Pipeline] Failed to send summary: {result.error}")
+        if not (getattr(result, 'success', None) or result.get('success')):
+            error = getattr(result, 'error', None) or result.get('error', 'unknown')
+            print(f"[Pipeline] Failed to send summary: {error}")
             return False
 
         print(f"[Pipeline] Telegram notification sent for {job_title} @ {company} (match: {match_pct:.0f}%, pdfs: {pdfs_sent})")
@@ -821,7 +951,7 @@ async def _send_telegram_notification(
 
 async def _auto_reset():
     """Reset pipeline state to idle after a delay."""
-    await asyncio.sleep(15)
+    await asyncio.sleep(60)
     if _pipeline_state["status"] in ("complete", "error"):
         _pipeline_state["status"] = "idle"
         _pipeline_state["progress_pct"] = 0

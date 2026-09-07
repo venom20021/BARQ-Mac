@@ -75,6 +75,16 @@ class QAGenerator:
             for h in exp["highlights"][:2]:
                 exp_text += f"  - {h}\n"
 
+        # Inject failure patterns from EvoMap (learn from past failures)
+        failure_context = ""
+        try:
+            import importlib
+            evo_mod = importlib.import_module("jobs.auto_applier.failure.evo_logger")
+            evo = evo_mod.EvoLogger()
+            failure_context = evo.get_llm_failure_context(max_chars=800)
+        except ImportError:
+            pass
+
         prompt = QA_PROMPT.format(
             name=PROFILE.full_name,
             education=PROFILE.education,
@@ -86,6 +96,10 @@ class QAGenerator:
             question=question.strip(),
             job_context=job_context.strip()[:1500],
         )
+
+        # Append failure context if available
+        if failure_context:
+            prompt += f"\n\n{failure_context}"
 
         try:
             answer = await self.ollama.generate(

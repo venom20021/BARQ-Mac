@@ -157,6 +157,12 @@ class Settings(BaseSettings):
     # Deepgram (cloud STT/TTS)
     deepgram_api_key: str = os.getenv("DEEPGRAM_API_KEY", "")
 
+    # ── Second Brain Integration ─────────────────────────────────────
+    second_brain_enabled: bool = os.getenv("SECOND_BRAIN_ENABLED", "false").lower() == "true"
+    second_brain_url: str = os.getenv("SECOND_BRAIN_URL", "http://127.0.0.1:8000")
+    second_brain_api_key: str = os.getenv("SECOND_BRAIN_API_KEY", "")
+    second_brain_sync_interval_minutes: int = int(os.getenv("SECOND_BRAIN_SYNC_INTERVAL", "5"))
+
     # External API Keys (loaded from .env)
     linkedin_email: str = os.getenv("LINKEDIN_EMAIL", "")
     linkedin_password: str = os.getenv("LINKEDIN_PASSWORD", "")

@@ -44,6 +44,9 @@ python/*.db
 python/generated/
 python/wallpapers/
 python/data/audio/
+python/data/brains/         # runtime brain JSON state (test chats, entities)
+python/data/*.db            # local SQLite runtime data
+python/data/memory_bus.db
 python/temp_screenshot.png
 python/notes.json
 

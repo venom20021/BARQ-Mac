@@ -176,6 +176,103 @@ class AutoApplyBot:
         """Send a simple notification (status updates, errors)."""
         return await self.send_message(text)
 
+    async def send_html_message(
+        self,
+        text: str,
+        title: str = "",
+        disable_notification: bool = False,
+    ) -> dict[str, Any]:
+        """Send a pre-formatted HTML message directly.
+
+        Returns dict with 'success' (bool) and optional 'error' (str)
+        to match TelegramChannel's interface.
+        """
+        if not self._bot or not self._chat_id:
+            return {"success": False, "error": "Telegram not configured"}
+
+        try:
+            message = text
+            if title:
+                import html as html_mod
+                safe_title = html_mod.escape(title)
+                message = f"<b>{safe_title}</b>\n\n{text}"
+
+            result = await self._bot.send_message(
+                chat_id=self._chat_id,
+                text=message,
+                parse_mode=ParseMode.HTML,
+                disable_notification=disable_notification,
+            )
+            return {"success": True, "message_id": result.message_id}
+        except Exception as exc:
+            logger.warning("Telegram HTML send failed: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+    async def send_document_from_bytes(
+        self,
+        file_bytes: bytes,
+        filename: str,
+        caption: str = "",
+        parse_mode: str = "HTML",
+    ) -> dict[str, Any]:
+        """Send a document (PDF, image, etc.) from in-memory bytes.
+
+        Uses aiogram's Bot.send_document() with FSInputFile-like bytes.
+        Returns dict with 'success' (bool) and optional 'error' (str).
+        """
+        if not self._bot or not self._chat_id:
+            return {"success": False, "error": "Telegram not configured"}
+
+        if not file_bytes:
+            return {"success": False, "error": "Empty file bytes"}
+
+        try:
+            from aiogram.types import BufferedInputFile
+
+            input_file = BufferedInputFile(file_bytes, filename=filename)
+            result = await self._bot.send_document(
+                chat_id=self._chat_id,
+                document=input_file,
+                caption=caption[:1000] if caption else "",
+                parse_mode=parse_mode,
+            )
+            return {"success": True, "message_id": result.message_id}
+        except Exception as exc:
+            logger.warning("Telegram document send failed: %s", exc)
+            return {"success": False, "error": str(exc)}
+
+    async def send_document(
+        self,
+        document_path: str,
+        caption: str = "",
+        parse_mode: str = "HTML",
+    ) -> dict[str, Any]:
+        """Send a document from a file path.
+
+        Returns dict with 'success' (bool) and optional 'error' (str).
+        """
+        if not self._bot or not self._chat_id:
+            return {"success": False, "error": "Telegram not configured"}
+
+        import os
+        if not os.path.isfile(document_path):
+            return {"success": False, "error": f"File not found: {document_path}"}
+
+        try:
+            from aiogram.types import FSInputFile
+
+            input_file = FSInputFile(document_path)
+            result = await self._bot.send_document(
+                chat_id=self._chat_id,
+                document=input_file,
+                caption=caption[:1000] if caption else "",
+                parse_mode=parse_mode,
+            )
+            return {"success": True, "message_id": result.message_id}
+        except Exception as exc:
+            logger.warning("Telegram document send failed: %s", exc)
+            return {"success": False, "error": str(exc)}
+
     # ── Internals ───────────────────────────────────────────────────────
 
     def _wire_callbacks(self) -> None:

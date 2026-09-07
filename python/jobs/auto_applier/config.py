@@ -109,7 +109,7 @@ class ApplierConfig:
     """Operational settings for the auto-apply engine."""
 
     # Browser
-    headless: bool = False                     # MUST be False per requirements
+    headless: bool = os.getenv("BROWSER_HEADLESS", "false").lower() == "true"
     browser_type: str = "chromium"             # chromium | firefox | webkit
     slow_mo: int = 50                          # ms delay between actions (human-like)
     viewport_width: int = 1366

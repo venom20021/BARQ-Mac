@@ -502,6 +502,19 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[BARQ Sidecar] Voice settings load skipped (non-fatal): {e}")
 
+    # ── Start Second Brain Auto-Sync ──────────────────────────────────────
+    try:
+        from memory_knowledge.second_brain_sync import auto_sync_scheduler
+        from config import get_settings as _cfg_settings
+        _sb_settings = _cfg_settings()
+        if _sb_settings.second_brain_enabled:
+            await auto_sync_scheduler.start()
+            print(f"[BARQ Sidecar] Second Brain auto-sync started (interval: {auto_sync_scheduler._interval_seconds}s)")
+        else:
+            print("[BARQ Sidecar] Second Brain auto-sync skipped (disabled)")
+    except Exception as e:
+        print(f"[BARQ Sidecar] Second Brain auto-sync start skipped (non-fatal): {e}")
+
     # ── Start Telegram Ingestion Bot ─────────────────────────────────────
     _telegram_app = None
     # If BARQ_SKIP_TELEGRAM=1 or true, skip the bot (local dev instances should
@@ -574,6 +587,14 @@ async def lifespan(app: FastAPI):
             print("[BARQ Sidecar] Telegram ingestion bot stopped")
         except Exception as _tg_se:
             print(f"[BARQ Sidecar] [WARN] Telegram bot shutdown error: {_tg_se}")
+
+    # Stop Second Brain auto-sync
+    try:
+        from memory_knowledge.second_brain_sync import auto_sync_scheduler
+        await auto_sync_scheduler.stop()
+        print("[BARQ Sidecar] Second Brain auto-sync stopped")
+    except Exception:
+        pass
 
     # Stop the ingestion watcher
     if _ingestion_monitor is not None:
@@ -661,6 +682,14 @@ app.include_router(desktop_router, prefix="/desktop", tags=["Desktop Automation"
 app.include_router(clipboard_router, prefix="/desktop", tags=["Desktop Automation"])
 app.include_router(graph_router, prefix="/graph", tags=["Graph Brain"])
 app.include_router(brain_api_router, tags=["Brain Visualisation"])
+
+# Second Brain Integration (BARQ ↔ Second Brain bidirectional sync)
+try:
+    from memory_knowledge.second_brain_routes import router as second_brain_router
+    app.include_router(second_brain_router, tags=["Second Brain Integration"])
+except ImportError as e:
+    print(f"[Main] Second Brain integration routes skipped (import error): {e}")
+
 app.include_router(auth_router, tags=["Auth"])
 app.include_router(api_v1_router, tags=["Jobs v1"])  # Already has /api/v1 prefix
 app.include_router(agent_router, prefix="/agent", tags=["Agent System"])
@@ -681,8 +710,11 @@ app.include_router(agent_skill_router)
 app.include_router(memory_bus_router)
 
 # Register auto-apply router (DynamicResumeBuilder, pipeline, etc.)
-from jobs.auto_applier.routes import router as auto_apply_router  # noqa: E402
-app.include_router(auto_apply_router, prefix="/api/jobs", tags=["Auto Apply"])
+try:
+    from jobs.auto_applier.routes import router as auto_apply_router  # noqa: E402
+    app.include_router(auto_apply_router, prefix="/api/jobs", tags=["Auto Apply"])
+except ImportError as e:
+    print(f"[Main] Auto-apply routes skipped (missing dependency): {e}")
 
 
 @app.get("/health")

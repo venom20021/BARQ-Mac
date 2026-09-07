@@ -911,6 +911,67 @@ async def pipeline_settings():
     return get_pipeline_settings()
 
 
+@router.post("/pipeline/retry")
+async def retry_failed_jobs(background_tasks: BackgroundTasks):
+    """Retry all failed applications that haven't exceeded max retries."""
+    from .pipeline import get_pipeline_progress, DEFAULT_SETTINGS as PIPELINE_SETTINGS
+
+    progress = get_pipeline_progress()
+    if progress["status"] == "running":
+        return {"status": "already_running", "message": "Pipeline is already running"}
+
+    # Get retryable failed jobs
+    max_retries = PIPELINE_SETTINGS.get("max_retries", 3)
+    failed = await jobs_dao.get_applications_by_status("failed", limit=50)
+    retryable = [
+        app for app in failed
+        if (app.get("retry_count") or 0) < max_retries
+    ]
+
+    if not retryable:
+        return {"status": "no_retryable", "message": "No failed jobs eligible for retry"}
+
+    # Reset their status to queued so the next pipeline run picks them up
+    for app in retryable:
+        await jobs_dao.update_application_status(app["id"], "queued")
+
+    await analytics_dao.log_activity(
+        "job", "retry_triggered",
+        f"Reset {len(retryable)} failed applications to queued for retry"
+    )
+
+    # Trigger the pipeline
+    from .pipeline import run_pipeline as _run_pipeline
+    asyncio.create_task(_run_pipeline())
+
+    return {
+        "status": "started",
+        "retry_count": len(retryable),
+        "message": f"Retrying {len(retryable)} failed jobs",
+    }
+
+
+@router.get("/pipeline/retry/status")
+async def retry_status():
+    """Get count of retryable failed jobs."""
+    from .pipeline import DEFAULT_SETTINGS as PIPELINE_SETTINGS
+    max_retries = PIPELINE_SETTINGS.get("max_retries", 3)
+    failed = await jobs_dao.get_applications_by_status("failed", limit=100)
+    retryable = [
+        app for app in failed
+        if (app.get("retry_count") or 0) < max_retries
+    ]
+    exhausted = [
+        app for app in failed
+        if (app.get("retry_count") or 0) >= max_retries
+    ]
+    return {
+        "retryable_count": len(retryable),
+        "exhausted_count": len(exhausted),
+        "max_retries": max_retries,
+    }
+
+
 @router.get("/scan/history")
 async def scan_history(hours: int = 24):
     """Get scan history from the activity log for the last N hours."""

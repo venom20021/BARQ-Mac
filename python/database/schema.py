@@ -133,6 +133,7 @@ CREATE TABLE IF NOT EXISTS applications (
         CHECK (response_type IN ('interview', 'rejection', 'assessment', 'offer', 'none')),
     interview_date TEXT,
     notified_at TEXT,                             -- when the last Telegram/notification was sent
+    retry_count INTEGER NOT NULL DEFAULT 0,       -- auto-retry up to 3 times on failure
     offer_details TEXT NOT NULL DEFAULT '{}',     -- JSON
     rejection_reason TEXT NOT NULL DEFAULT '',
     score REAL DEFAULT 0.0
@@ -511,7 +512,42 @@ CREATE TABLE IF NOT EXISTS entity_images (
 );
 """
 
+CREATE_SYNC_MAPPINGS = """
+CREATE TABLE IF NOT EXISTS sync_mappings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    brain_type TEXT NOT NULL DEFAULT 'general',        -- BARQ brain domain
+    entity_name TEXT NOT NULL,                          -- BARQ entity name
+    second_brain_item_id INTEGER,                       -- Second Brain item ID
+    content_hash TEXT NOT NULL DEFAULT '',               -- hash of last-synced content for change detection
+    direction TEXT NOT NULL DEFAULT 'both'
+        CHECK (direction IN ('to_items', 'to_triplets', 'both')),
+    last_synced_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(brain_type, entity_name, second_brain_item_id)
+);
+"""
+
+CREATE_SYNC_LOG = """
+CREATE TABLE IF NOT EXISTS sync_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sync_type TEXT NOT NULL
+        CHECK (sync_type IN ('to_items', 'to_triplets', 'full')),
+    status TEXT NOT NULL DEFAULT 'running'
+        CHECK (status IN ('running', 'completed', 'failed')),
+    items_synced INTEGER NOT NULL DEFAULT 0,
+    items_created INTEGER NOT NULL DEFAULT 0,
+    items_updated INTEGER NOT NULL DEFAULT 0,
+    items_skipped INTEGER NOT NULL DEFAULT 0,
+    errors INTEGER NOT NULL DEFAULT 0,
+    error_message TEXT NOT NULL DEFAULT '',
+    started_at TEXT NOT NULL DEFAULT (datetime('now')),
+    completed_at TEXT
+);
+"""
+
 ALL_TABLES = [
+    ("sync_mappings", CREATE_SYNC_MAPPINGS),
+    ("sync_log", CREATE_SYNC_LOG),
     ("user_settings", CREATE_USER_SETTINGS),
     ("user_profiles", CREATE_USER_PROFILES),
     ("notes", CREATE_NOTES),
@@ -568,6 +604,12 @@ SCHEMA_MIGRATIONS = [
         "content_scripts",
         "gate_iterations",
         "ALTER TABLE content_scripts ADD COLUMN gate_iterations INTEGER NOT NULL DEFAULT 0",
+    ),
+    # Pipeline retry: track retry count for failed applications
+    (
+        "applications",
+        "retry_count",
+        "ALTER TABLE applications ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0",
     ),
 ]
 

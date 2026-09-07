@@ -189,6 +189,17 @@ class FormFiller:
             skills=", ".join(PROFILE.skills[:10]),
         )
 
+        # Inject failure patterns from EvoMap (learn from past failures)
+        try:
+            import importlib
+            evo_mod = importlib.import_module("jobs.auto_applier.failure.evo_logger")
+            evo = evo_mod.EvoLogger()
+            failure_ctx = evo.get_llm_failure_context(max_chars=600)
+            if failure_ctx:
+                prompt += f"\n\n{failure_ctx}"
+        except ImportError:
+            pass
+
         try:
             action = await self.selector.ollama.generate_json(
                 prompt=prompt,
