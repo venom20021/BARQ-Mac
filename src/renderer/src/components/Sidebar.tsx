@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Briefcase, Video, BarChart3, Settings,
   FolderOpen, Terminal, Monitor, Globe, Smartphone, Search,
   FileText, MessageSquare, Palette, PanelRightOpen,
-  Cpu, Eye, Zap, BookOpen, GitBranch, Activity, Workflow,
+  Cpu, Eye, Zap, BookOpen, GitBranch, Activity, Workflow, Link2,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { NotificationCenter } from './NotificationCenter'
@@ -54,6 +54,7 @@ const navSections: { label: string; items: NavItemDef[] }[] = [
       { path: '/chat', label: 'Chat', icon: MessageSquare },
       { path: '/memory', label: 'Notes & Storage', icon: BookOpen },
       { path: '/brain', label: 'Knowledge Graph', icon: GitBranch },
+      { path: '/unified-knowledge', label: 'Unified Knowledge', icon: Link2 },
       { path: '/agent', label: 'Agent', icon: Cpu },
       { path: '/vision', label: 'Vision', icon: Eye },
       { path: '/evolution', label: 'Evolution', icon: Activity },

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, startTransition } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../utils/api'
-import { Settings, Shield, Bell, Mic, Key, Palette, User, Loader2, CheckCircle, Briefcase, Video, Volume2, Play, Terminal, Cpu, Cloud, WifiOff, Trash2, Plus, X, Save, Eye, Send, ShieldCheck, ShieldOff, AlertTriangle, Sunrise } from 'lucide-react'
+import { Settings, Shield, Bell, Mic, Key, Palette, User, Loader2, CheckCircle, Briefcase, Video, Volume2, Play, Terminal, Cpu, Cloud, WifiOff, Trash2, Plus, X, Save, Eye, Send, ShieldCheck, ShieldOff, AlertTriangle, Sunrise, Database, RefreshCw, Wifi, Brain } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { SettingsSection } from './settings/types'
 import { sections, TTS_VOICES, SENSITIVITY_LEVELS, type VoiceStatus } from './settings/types'
@@ -18,6 +19,7 @@ import { renderToggle, renderSelect } from './settings/renderHelpers'
 // ── Main Settings Page Component ──────────────────────────────────────────
 
 export function SettingsPage(): JSX.Element {
+  const navigate = useNavigate()
   const [activeSection, setActiveSection] = useState('voice')
   const [voiceStatus, setVoiceStatus] = useState<VoiceStatus | null>(null)
   const [voiceLoading, setVoiceLoading] = useState(false)
@@ -73,6 +75,7 @@ export function SettingsPage(): JSX.Element {
     preferred_locations: 'remote',
     preferred_industries: 'technology',
     auto_apply: false,
+    browser_headless: false,
   })
 
   // Social settings
@@ -172,6 +175,79 @@ export function SettingsPage(): JSX.Element {
     font_scale: '100',
     animations: true,
   })
+
+  // Second Brain settings
+  const [sbSettings, setSBSettings] = useState({
+    enabled: false,
+    url: 'http://127.0.0.1:8000',
+    api_key: '',
+    sync_interval: 5,
+    auto_sync: false,
+  })
+  const [sbSettingsLoading, setSBSettingsLoading] = useState(false)
+  const [sbSettingsSaved, setSBSettingsSaved] = useState('')
+  const [sbConnectionStatus, setSBConnectionStatus] = useState<'unknown' | 'connected' | 'disconnected'>('unknown')
+  const [sbTestLoading, setSBTestLoading] = useState(false)
+  const [sbApiKeyVisible, setSBApiKeyVisible] = useState(false)
+
+  // ─── Ollama LLM State ──────────────────────────────────────────
+  const [ollamaSettings, setOllamaSettings] = useState({
+    host: 'http://127.0.0.1:11434',
+    model: 'llama3.2:3b',
+  })
+  const [ollamaLoading, setOllamaLoading] = useState(false)
+  const [ollamaSaved, setOllamaSaved] = useState('')
+  const [ollamaTestResult, setOllamaTestResult] = useState<null | { connected: boolean; error?: string; model_available?: boolean }>(null)
+  const [ollamaTestLoading, setOllamaTestLoading] = useState(false)
+
+  // ─── Ollama Callbacks ──────────────────────────────────────────
+  const fetchOllamaSettings = useCallback(async () => {
+    setOllamaLoading(true)
+    try {
+      const resp = await api('/settings/ollama')
+      if (resp && typeof resp === 'object') {
+        const data = resp as Record<string, unknown>
+        setOllamaSettings({
+          host: String(data.host || 'http://127.0.0.1:11434'),
+          model: String(data.model || 'llama3.2:3b'),
+        })
+      }
+    } catch {
+      // use defaults
+    } finally {
+      setOllamaLoading(false)
+    }
+  }, [])
+
+  const saveOllamaSettings = useCallback(async () => {
+    setOllamaLoading(true)
+    setOllamaSaved('')
+    try {
+      await api('/settings/ollama', {
+        method: 'POST',
+        body: JSON.stringify(ollamaSettings),
+      })
+      setOllamaSaved('saved')
+      setTimeout(() => setOllamaSaved(''), 2000)
+    } catch (e) {
+      setOllamaSaved('error')
+    } finally {
+      setOllamaLoading(false)
+    }
+  }, [ollamaSettings])
+
+  const testOllamaConnection = useCallback(async () => {
+    setOllamaTestLoading(true)
+    setOllamaTestResult(null)
+    try {
+      const resp = await api('/settings/ollama/test')
+      setOllamaTestResult(resp as any)
+    } catch (e) {
+      setOllamaTestResult({ connected: false, error: String(e) })
+    } finally {
+      setOllamaTestLoading(false)
+    }
+  }, [])
 
   // ─── Cloud LLM Callbacks ──────────────────────────────────────
 
@@ -659,6 +735,70 @@ export function SettingsPage(): JSX.Element {
     return () => clearInterval(t)
   }, [])
 
+  // ─── Second Brain Callbacks ─────────────────────────────────
+
+  const fetchSBSettings = useCallback(async () => {
+    setSBSettingsLoading(true)
+    try {
+      const resp = await api('/settings/second-brain')
+      if (resp && typeof resp === 'object') {
+        const data = resp as Record<string, unknown>
+        setSBSettings({
+          enabled: data.enabled === true,
+          url: (data.url as string) || 'http://127.0.0.1:8000',
+          api_key: '',  // never return real key from backend
+          sync_interval: (data.sync_interval as number) || 5,
+          auto_sync: data.auto_sync === true,
+        })
+      }
+      // Also check live connection status
+      const statusResp = await api('/api/second-brain/status')
+      if (statusResp && typeof statusResp === 'object') {
+        const s = statusResp as Record<string, unknown>
+        setSBConnectionStatus(s.connected === true ? 'connected' : 'disconnected')
+      }
+    } catch {
+      setSBConnectionStatus('disconnected')
+    }
+    setSBSettingsLoading(false)
+  }, [])
+
+  const saveSBSettings = useCallback(async () => {
+    setSBSettingsSaved('')
+    try {
+      const resp = await api('/settings/second-brain', {
+        enabled: sbSettings.enabled,
+        url: sbSettings.url,
+        api_key: sbSettings.api_key,
+        sync_interval: sbSettings.sync_interval,
+        auto_sync: sbSettings.auto_sync,
+      })
+      if (resp && typeof resp === 'object' && (resp as Record<string, unknown>).status === 'saved') {
+        setSBSettings(prev => ({ ...prev, api_key: '' }))  // clear after save
+        setSBSettingsSaved('Settings saved!')
+        setTimeout(() => setSBSettingsSaved(''), 3000)
+      }
+    } catch {
+      setSBSettingsSaved('')
+    }
+  }, [sbSettings])
+
+  const testSBConnection = useCallback(async () => {
+    setSBTestLoading(true)
+    setSBConnectionStatus('unknown')
+    try {
+      const resp = await api('/api/second-brain/health')
+      if (resp && typeof resp === 'object') {
+        setSBConnectionStatus('connected')
+      } else {
+        setSBConnectionStatus('disconnected')
+      }
+    } catch {
+      setSBConnectionStatus('disconnected')
+    }
+    setSBTestLoading(false)
+  }, [])
+
   useEffect(() => {
     startTransition(() => {
       void fetchVoiceStatus()
@@ -671,8 +811,10 @@ export function SettingsPage(): JSX.Element {
       void fetchCloudLLM()
       void fetchCloudConfig()
       void fetchBriefing()
+      void fetchSBSettings()
+      void fetchOllamaSettings()
     })
-  }, [fetchVoiceStatus, fetchSettings, fetchSoundSettings, fetchWhitelistRules, fetchVoiceSettings, fetchTelegramCredentials, fetchCloudLLM, fetchCloudConfig, fetchBriefing])
+  }, [fetchVoiceStatus, fetchSettings, fetchSoundSettings, fetchWhitelistRules, fetchVoiceSettings, fetchTelegramCredentials, fetchCloudLLM, fetchCloudConfig, fetchBriefing, fetchSBSettings])
 
 
   return (
@@ -1504,6 +1646,24 @@ export function SettingsPage(): JSX.Element {
                   </div>
                   {renderToggle(jobSettings.auto_apply, () => setJobSettings(prev => ({ ...prev, auto_apply: !prev.auto_apply })))}
                 </div>
+                {jobSettings.auto_apply && (
+                  <div className="flex items-center justify-between py-3 border-t border-cyan-500/8">
+                    <div>
+                      <p className="text-sm font-rajdhani font-semibold text-ghost">Headless Browser</p>
+                      <p className="text-xs font-exo text-dim-400">Run browser invisibly (no visible window)</p>
+                    </div>
+                    {renderToggle(jobSettings.browser_headless, async () => {
+                      const newHeadless = !jobSettings.browser_headless
+                      setJobSettings(prev => ({ ...prev, browser_headless: newHeadless }))
+                      try {
+                        await api('/jobs/auto-apply/browser', {
+                          method: 'POST',
+                          body: JSON.stringify({ headless: newHeadless, slow_mo: 50 }),
+                        })
+                      } catch { /* ignore */ }
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2070,6 +2230,244 @@ export function SettingsPage(): JSX.Element {
                     (e.g. your Oracle VM at {cloudMode ? cloudUrl : 'http://YOUR_VM_IP'}).
                     Local mode runs the Python sidecar on this machine.
                   </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ─── Second Brain Section ─── */}
+          {activeSection === 'second-brain' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-orbitron font-bold text-ghost tracking-wider mb-1">Second Brain Integration</h3>
+                <p className="text-sm font-rajdhani text-dim-400">Connect your Second Brain knowledge base for unified search and sync</p>
+              </div>
+
+              <div className="bg-void-700/30 rounded-lg p-4 border border-purple-500/10">
+                <div className="flex items-center gap-2 mb-3">
+                  <Database className="w-4 h-4 text-purple-300" />
+                  <h4 className="text-xs font-orbitron font-bold text-ghost tracking-wider uppercase">Connection</h4>
+                </div>
+
+                {sbSettingsLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="w-5 h-5 animate-spin text-purple-300" />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {/* Enable toggle */}
+                    <div className="flex items-center justify-between py-2">
+                      <div>
+                        <p className="text-xs font-rajdhani font-semibold text-ghost">Enable Second Brain</p>
+                        <p className="text-[10px] font-exo text-dim-500">Connect to your Second Brain Flask app for knowledge integration</p>
+                      </div>
+                      {renderToggle(sbSettings.enabled, () => setSBSettings(prev => ({ ...prev, enabled: !prev.enabled })))}
+                    </div>
+
+                    {/* URL */}
+                    <div>
+                      <label className="text-[10px] font-rajdhani font-semibold text-dim-400 uppercase tracking-wider">Second Brain URL</label>
+                      <input
+                        type="text"
+                        value={sbSettings.url}
+                        onChange={(e) => setSBSettings(prev => ({ ...prev, url: e.target.value }))}
+                        placeholder="http://127.0.0.1:8000"
+                        className="w-full mt-1 bg-void-800/60 text-ghost text-xs font-mono px-3 py-2 rounded-lg border border-purple-500/15 focus:outline-none focus:border-purple-500/30 placeholder:text-dim-500"
+                      />
+                    </div>
+
+                    {/* API Key */}
+                    <div>
+                      <label className="text-[10px] font-rajdhani font-semibold text-dim-400 uppercase tracking-wider">API Key</label>
+                      <div className="flex gap-2 mt-1">
+                        <input
+                          type={sbApiKeyVisible ? 'text' : 'password'}
+                          value={sbSettings.api_key}
+                          onChange={(e) => setSBSettings(prev => ({ ...prev, api_key: e.target.value }))}
+                          placeholder="sb_your_key (from Second Brain settings)"
+                          className="flex-1 bg-void-800/60 text-ghost text-xs font-mono px-3 py-2 rounded-lg border border-purple-500/15 focus:outline-none focus:border-purple-500/30 placeholder:text-dim-500"
+                        />
+                        <button
+                          onClick={() => setSBApiKeyVisible(!sbApiKeyVisible)}
+                          className="flex items-center gap-1 px-2 py-1.5 text-xs font-rajdhani font-semibold rounded-lg bg-void-800/40 text-dim-400 border border-purple-500/10 hover:text-ghost transition-all"
+                        >
+                          {sbApiKeyVisible ? '🙈' : '👁️'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Test Connection */}
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={testSBConnection}
+                        disabled={sbTestLoading}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[10px] font-rajdhani font-semibold hover:bg-purple-500/20 transition-all disabled:opacity-40"
+                      >
+                        {sbTestLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wifi className="w-3 h-3" />}
+                        Test Connection
+                      </button>
+                      {sbConnectionStatus === 'connected' && (
+                        <div className="flex items-center gap-1.5">
+                          <CheckCircle className="w-3 h-3 text-emerald-400" />
+                          <span className="text-[10px] font-mono text-emerald-400">Connected</span>
+                        </div>
+                      )}
+                      {sbConnectionStatus === 'disconnected' && (
+                        <div className="flex items-center gap-1.5">
+                          <WifiOff className="w-3 h-3 text-red-400" />
+                          <span className="text-[10px] font-mono text-red-400">Not reachable</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Sync Settings */}
+              <div className="bg-void-700/30 rounded-lg p-4 border border-purple-500/10">
+                <div className="flex items-center gap-2 mb-3">
+                  <RefreshCw className="w-4 h-4 text-purple-300" />
+                  <h4 className="text-xs font-orbitron font-bold text-ghost tracking-wider uppercase">Sync</h4>
+                </div>
+
+                <div className="space-y-3">
+                  {/* Auto-sync toggle */}
+                  <div className="flex items-center justify-between py-2">
+                    <div>
+                      <p className="text-xs font-rajdhani font-semibold text-ghost">Auto-Sync</p>
+                      <p className="text-[10px] font-exo text-dim-500">Automatically sync knowledge between BARQ and Second Brain</p>
+                    </div>
+                    {renderToggle(sbSettings.auto_sync, () => setSBSettings(prev => ({ ...prev, auto_sync: !prev.auto_sync })))}
+                  </div>
+
+                  {/* Sync interval */}
+                  {sbSettings.auto_sync && (
+                    <div>
+                      <label className="text-[10px] font-rajdhani font-semibold text-dim-400 uppercase tracking-wider">Sync Interval</label>
+                      <div className="mt-1">
+                        {renderSelect(
+                          String(sbSettings.sync_interval),
+                          [
+                            { value: '1', label: 'Every 1 minute' },
+                            { value: '5', label: 'Every 5 minutes' },
+                            { value: '10', label: 'Every 10 minutes' },
+                            { value: '30', label: 'Every 30 minutes' },
+                            { value: '60', label: 'Every hour' },
+                          ],
+                          (v) => setSBSettings(prev => ({ ...prev, sync_interval: Number(v) })),
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Save Button */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={saveSBSettings}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 text-xs font-rajdhani font-semibold hover:bg-purple-500/20 transition-all"
+                >
+                  <Save className="w-3 h-3" />
+                  Save Settings
+                </button>
+                {sbSettingsSaved && (
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle className="w-3 h-3 text-emerald-400" />
+                    <span className="text-[10px] font-mono text-emerald-400">{sbSettingsSaved}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Links */}
+              <div className="bg-void-700/30 rounded-lg p-4 border border-zinc-700/30">
+                <h4 className="text-xs font-orbitron font-bold text-dim-400 tracking-wider uppercase mb-2">Quick Links</h4>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => navigate('/unified-knowledge')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[10px] font-rajdhani font-semibold hover:bg-cyan-500/20 transition-all">
+                    <Database className="w-3 h-3" />
+                    Unified Knowledge
+                  </button>
+                  <button onClick={() => navigate('/brain')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[10px] font-rajdhani font-semibold hover:bg-purple-500/20 transition-all">
+                    <Brain className="w-3 h-3" />
+                    BARQ Brains
+                  </button>
+                  <button onClick={() => navigate('/voice-skills')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-rajdhani font-semibold hover:bg-emerald-500/20 transition-all">
+                    <Mic className="w-3 h-3" />
+                    Voice Skills
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ─── Ollama LLM Section ─── */}
+          {activeSection === 'ollama' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-orbitron font-bold text-ghost tracking-wider mb-1">Ollama LLM Configuration</h3>
+                <p className="text-sm font-rajdhani text-dim-400">Configure the local Ollama server used for resume optimization, cover letters, and form filling</p>
+              </div>
+
+              <div className="glass-card p-5 rounded-xl border border-ghost/5">
+                <h4 className="text-sm font-orbitron font-bold text-ghost/80 tracking-wider mb-4">Connection</h4>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-rajdhani text-dim-400 block mb-1">Host URL</label>
+                    <input
+                      type="text"
+                      value={ollamaSettings.host}
+                      onChange={(e) => setOllamaSettings({ ...ollamaSettings, host: e.target.value })}
+                      placeholder="http://127.0.0.1:11434"
+                      className="w-full bg-ghost/5 border border-ghost/10 rounded-lg px-3 py-2 text-sm font-mono text-ghost/90 placeholder:text-ghost/30 focus:outline-none focus:border-cyan/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-rajdhani text-dim-400 block mb-1">Model</label>
+                    <input
+                      type="text"
+                      value={ollamaSettings.model}
+                      onChange={(e) => setOllamaSettings({ ...ollamaSettings, model: e.target.value })}
+                      placeholder="llama3.2:3b"
+                      className="w-full bg-ghost/5 border border-ghost/10 rounded-lg px-3 py-2 text-sm font-mono text-ghost/90 placeholder:text-ghost/30 focus:outline-none focus:border-cyan/50"
+                    />
+                  </div>
+                  <button
+                    onClick={saveOllamaSettings}
+                    disabled={ollamaLoading}
+                    className="bg-cyan/10 hover:bg-cyan/20 text-cyan px-4 py-2 rounded-lg text-sm font-rajdhani font-bold transition-all disabled:opacity-50"
+                  >
+                    {ollamaLoading ? 'Saving...' : ollamaSaved === 'saved' ? '✓ Saved' : 'Save Settings'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="glass-card p-5 rounded-xl border border-ghost/5">
+                <h4 className="text-sm font-orbitron font-bold text-ghost/80 tracking-wider mb-3">Test Connection</h4>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={testOllamaConnection}
+                    disabled={ollamaTestLoading}
+                    className="bg-ghost/10 hover:bg-ghost/20 text-ghost px-4 py-2 rounded-lg text-sm font-rajdhani font-bold transition-all disabled:opacity-50"
+                  >
+                    {ollamaTestLoading ? 'Testing...' : 'Test Connection'}
+                  </button>
+                  {ollamaTestResult && (
+                    <span className={`text-sm font-rajdhani ${ollamaTestResult.connected ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {ollamaTestResult.connected ? `✓ Connected (model: ${ollamaTestResult.model_available ? 'available' : 'not found'})` : `✗ ${ollamaTestResult.error}`}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="glass-card p-5 rounded-xl border border-ghost/5">
+                <h4 className="text-sm font-orbitron font-bold text-ghost/80 tracking-wider mb-3">Quick Links</h4>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => navigate('/voice-skills')}
+                    className="bg-ghost/10 hover:bg-ghost/20 text-ghost/70 px-3 py-1.5 rounded-lg text-xs font-rajdhani transition-all"
+                  >
+                    Voice Skills →
+                  </button>
                 </div>
               </div>
             </div>

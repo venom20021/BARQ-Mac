@@ -1,5 +1,5 @@
-import { Suspense, useState, useEffect, useRef, useCallback, lazy, useMemo, startTransition } from 'react'
-import type { MutableRefObject } from 'react'
+import { Suspense, Component, useState, useEffect, useRef, useCallback, lazy, useMemo, startTransition } from 'react'
+import type { MutableRefObject, ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Cloud, Mic, MicOff, Bot, User, ArrowLeft, Send, Loader2, Trash2,
@@ -93,6 +93,48 @@ import type { QualityLevel } from '../components/ParticleSphere3D'
 const ParticleSphere3D = lazy(() =>
   import('../components/ParticleSphere3D').then(mod => ({ default: mod.ParticleSphere3D }))
 )
+
+// Lazy-load the Humanoid Dashboard
+const HumanoidDashboard = lazy(() =>
+  import('../components/dashboard/humanoid').then(mod => ({ default: mod.HumanoidDashboard }))
+)
+
+// ─── Error Boundary for Humanoid view (isolated crash recovery) ─────
+
+interface HErrorState { hasError: boolean; message?: string }
+
+class HumanoidErrorBoundary extends Component<{ children: ReactNode; onFallback: () => void }, HErrorState> {
+  state: HErrorState = { hasError: false }
+
+  static getDerivedStateFromError(e: Error): HErrorState {
+    return { hasError: true, message: e.message }
+  }
+
+  componentDidCatch(error: Error): void {
+    console.error('[HumanoidDashboard] CRASH:', error)
+  }
+
+  render(): ReactNode {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full h-full flex items-center justify-center bg-black">
+          <div className="text-center max-w-sm">
+            <div className="text-3xl mb-4">⚠️</div>
+            <p className="text-sm font-mono text-red-400 mb-2">Humanoid view crashed</p>
+            <p className="text-xs font-mono text-white/30 mb-4 break-all">{this.state.message}</p>
+            <button
+              onClick={this.props.onFallback}
+              className="px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-xs font-mono text-white/50 hover:text-white/80 hover:bg-white/10 transition-all"
+            >
+              ← Back to Network
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 // ─── Quality preset key ────────────────────────────────────────────────
 
@@ -367,6 +409,17 @@ export function DashboardPage(): JSX.Element {
   } = voice
   const [userName, setUserName] = useState(getStoredUserName)
 
+  // ── Dashboard view mode: 'network' (existing) or 'humanoid' (new) ──
+  const [dashboardView, setDashboardView] = useState<'network' | 'humanoid'>('network')
+
+  const toggleDashboardView = useCallback(() => {
+    setDashboardView(prev => {
+      const next = prev === 'network' ? 'humanoid' : 'network'
+      try { localStorage.setItem('barq_dashboard_view', next) } catch { /* ignore */ }
+      return next
+    })
+  }, [])
+
   // ── Clickable agent node state ───────────────────────────────────
   const [activeAgent, setActiveAgent] = useState<string | null>(null)
   const focusTargetRef = useRef<Vector3 | null>(null) as MutableRefObject<Vector3 | null>
@@ -604,7 +657,7 @@ export function DashboardPage(): JSX.Element {
   }, [setActiveRadialMenu])
   const onCloseRadialMenu = useCallback(() => {
     setActiveRadialMenu(null)
-  }, [setActiveRadialMenu])
+  }, [])
 
   const onReturnToCore = useCallback(() => {
     setActiveAgent(null)
@@ -726,7 +779,7 @@ export function DashboardPage(): JSX.Element {
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {/* ── 3D Agent Network Canvas ───────────────────────────────── */}
+      {/* ── 3D Canvas (switches between network and humanoid views) ─── */}
       <div className="absolute inset-0">
         <Suspense fallback={
           <div className="w-full h-full flex items-center justify-center">
@@ -736,24 +789,48 @@ export function DashboardPage(): JSX.Element {
             </div>
           </div>
         }>
-          <ParticleSphere3D
-            activeAgent={activeAgent}
-            onSelectAgent={onSelectAgent}
-            focusTargetRef={focusTargetRef}
-            onReturnToCore={onReturnToCore}
-            systemLoad={systemLoad}
-            activeTransfers={activeTransfers}
-            onContextMenu={onContextMenu}
-            activeRadialMenu={activeRadialMenu}
-            onCloseRadialMenu={onCloseRadialMenu}
-            onRadialAction={handleRadialAction}
-            quality={quality}
-          />
+          {dashboardView === 'humanoid' ? (
+            <HumanoidErrorBoundary onFallback={toggleDashboardView}>
+              <HumanoidDashboard />
+            </HumanoidErrorBoundary>
+          ) : (
+            <ParticleSphere3D
+              activeAgent={activeAgent}
+              onSelectAgent={onSelectAgent}
+              focusTargetRef={focusTargetRef}
+              onReturnToCore={onReturnToCore}
+              systemLoad={systemLoad}
+              activeTransfers={activeTransfers}
+              onContextMenu={onContextMenu}
+              activeRadialMenu={activeRadialMenu}
+              onCloseRadialMenu={onCloseRadialMenu}
+              onRadialAction={handleRadialAction}
+              quality={quality}
+            />
+          )}
         </Suspense>
       </div>
 
       {/* ── Subtle vignette overlay ───────────────────────────────── */}
       <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.4) 100%)' }} />
+
+      {/* ═══ VIEW TOGGLE (top-right, above HUD) ═══ */}
+      <div className="absolute top-6 right-20 z-30">
+        <button
+          onClick={toggleDashboardView}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg backdrop-blur-md bg-white/5 border border-white/10 hover:bg-white/10 hover:border-cyan-500/30 transition-all duration-300 group"
+          title={`Switch to ${dashboardView === 'network' ? 'Humanoid' : 'Network'} view`}
+        >
+          <div className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${dashboardView === 'humanoid' ? 'bg-cyan-400 shadow-[0_0_6px_rgba(0,229,255,0.5)]' : 'bg-white/20'}`} />
+          <span className="text-[9px] font-mono text-white/40 tracking-[0.15em] uppercase group-hover:text-white/60 transition-colors duration-300">
+            {dashboardView === 'network' ? 'Network' : 'Humanoid'}
+          </span>
+          <span className="text-[8px] font-mono text-white/20">|</span>
+          <span className="text-[9px] font-mono text-white/25 tracking-wider group-hover:text-cyan-300/60 transition-colors duration-300">
+            {dashboardView === 'network' ? 'Humanoid' : 'Network'}
+          </span>
+        </button>
+      </div>
 
       {/* ═══ WORKSPACE SIDE-PANEL ═══ */}
       <AnimatePresence>
@@ -1088,6 +1165,7 @@ export function DashboardPage(): JSX.Element {
           )}
         </div>
       </div>
+
 
       {/* ═══ CONTEXT DROP ZONE (viewport-scaled orbital ring) ═══ */}
       <AnimatePresence>

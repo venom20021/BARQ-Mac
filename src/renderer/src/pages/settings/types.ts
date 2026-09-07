@@ -1,4 +1,4 @@
-import { Settings, Mic, Volume2, Key, Cpu, Bell, Briefcase, Video, Shield, Terminal, User, Cloud, Palette, Sunrise } from 'lucide-react'
+import { Settings, Mic, Volume2, Key, Cpu, Bell, Briefcase, Video, Shield, Terminal, User, Cloud, Palette, Sunrise, Database } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -34,6 +34,8 @@ export const sections: SettingsSection[] = [
   { id: 'debug', label: 'Debug', icon: Terminal, description: 'Debug logging and diagnostics' },
   { id: 'profile', label: 'Profile', icon: User, description: 'Your name and personal details' },
   { id: 'connection', label: 'Connection', icon: Cloud, description: 'Local or cloud backend mode' },
+  { id: 'second-brain', label: 'Second Brain', icon: Database, description: 'Knowledge integration and sync settings' },
+  { id: 'ollama', label: 'Ollama LLM', icon: Cpu, description: 'Local LLM host, model, and connection settings' },
   { id: 'appearance', label: 'Appearance', icon: Palette, description: 'Theme and display settings' },
 ]
 

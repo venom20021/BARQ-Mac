@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback, useRef, startTransition } from 'react
 import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LayoutDashboard, StickyNote, ImageIcon, Smartphone, Settings } from 'lucide-react'
+import { LayoutDashboard, StickyNote, ImageIcon, Smartphone, Settings, Mic } from 'lucide-react'
 
-export type NavTab = 'DASHBOARD' | 'NOTES' | 'GALLERY' | 'PHONE' | 'SETTINGS'
+export type NavTab = 'DASHBOARD' | 'NOTES' | 'GALLERY' | 'PHONE' | 'SETTINGS' | 'VOICE'
 
 export type AIState = 'idle' | 'listening' | 'thinking' | 'responding'
 
@@ -18,6 +18,7 @@ const tabs: { id: NavTab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'NOTES', label: 'Notes', icon: StickyNote },
   { id: 'GALLERY', label: 'Gallery', icon: ImageIcon },
   { id: 'PHONE', label: 'Mobile', icon: Smartphone },
+  { id: 'VOICE', label: 'Voice', icon: Mic },
   { id: 'SETTINGS', label: 'Settings', icon: Settings },
 ]
 

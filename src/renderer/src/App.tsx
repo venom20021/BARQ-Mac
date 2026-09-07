@@ -38,6 +38,8 @@ import { VisionPage } from './pages/VisionPage'
 import { BrainPage } from './pages/BrainPage'
 import { PublicApisPage } from './pages/PublicApisPage'
 import { EvolutionPage } from './pages/EvolutionPage'
+import { VoiceSkillsPage } from './pages/VoiceSkillsPage'
+import { UnifiedKnowledgePage } from './pages/UnifiedKnowledgePage'
 
 // Lazy loaded views for the main navbar tabs
 const NotesView = lazy(() => import('./views/NotesView'))
@@ -46,40 +48,90 @@ const GalleryView = lazy(() => import('./views/GalleryView'))
 // ─── Quick Command Router ──────────────────────────────────────────────────
 
 function processQuickCommand(cmd: string, nav: (route: string) => void): void {
-  if (cmd.includes('scan') && cmd.includes('job')) {
-    void window.barq?.jobs.scan()
-  } else if (cmd.includes('trend') || cmd.includes('trending')) {
-    void window.barq?.social.trends()
-  } else if (cmd.includes('open') || cmd.includes('navigate') || cmd.includes('go to')) {
+  // ── Page Navigation (all BARQ pages) ─────────────────────────────
+  const navigateIfMatch = (): boolean => {
     const routeMap: Record<string, string> = {
-      files: '/files', dev: '/dev', system: '/system', web: '/web',
-      phone: '/phone', research: '/research', docs: '/docs',
-      chat: '/chat', memory: '/memory', jobs: '/jobs',
-      social: '/content', settings: '/settings', home: '/dashboard',
-      dashboard: '/dashboard',
+      // Primary pages
+      'dashboard': '/dashboard', 'home': '/dashboard', 'command': '/dashboard',
+      'analytics': '/analytics', 'insights': '/analytics',
+      'jobs': '/jobs', 'job': '/jobs', 'careers': '/jobs', 'career': '/jobs', 'recruitment': '/jobs',
+      'social': '/content', 'content': '/content', 'social media': '/content',
+      'files': '/files', 'file': '/files', 'explorer': '/files',
+      'dev': '/dev', 'developer': '/dev', 'terminal': '/dev',
+      'system': '/system', 'hardware': '/system', 'monitor': '/system',
+      'web': '/web', 'browser': '/web', 'weather': '/web', 'stocks': '/web',
+      'phone': '/phone', 'mobile': '/phone',
+      'research': '/research', 'search': '/research', 'deep research': '/research',
+      'docs': '/docs', 'documents': '/docs', 'documentation': '/docs',
+      'chat': '/chat', 'conversation': '/chat', 'talk': '/chat',
+      'memory': '/memory', 'notes & storage': '/memory', 'storage': '/memory',
+      'widgets': '/widgets', 'widget': '/widgets',
+      'settings': '/settings', 'preferences': '/settings', 'config': '/settings',
+      'agent': '/agent', 'ai agent': '/agent', 'automation agent': '/agent',
+      'workflows': '/workflows', 'workflow': '/workflows', 'automations': '/workflows',
+      'vision': '/vision', 'camera': '/vision', 'screen analysis': '/vision',
+      'brain': '/brain', 'knowledge': '/brain', 'knowledge graph': '/brain', 'graph': '/brain',
+      'apis': '/apis', 'api': '/apis', 'public apis': '/apis', 'integrations': '/apis',
+      'evolution': '/evolution', 'evolve': '/evolution', 'learning': '/evolution',
+      'voice skills': '/voice-skills', 'voice': '/voice-skills', 'skills': '/voice-skills', 'voice commands': '/voice-skills', 'commands': '/voice-skills',
+      'unified knowledge': '/unified-knowledge', 'unified': '/unified-knowledge', 'second brain': '/unified-knowledge',
+      'notes': '/notes', 'note': '/notes',
+      'gallery': '/gallery', 'images': '/gallery', 'photos': '/gallery',
     }
+
     for (const [key, route] of Object.entries(routeMap)) {
       if (cmd.includes(key)) {
         nav(route)
-        return
+        return true
       }
     }
-    nav('/dashboard')
+    return false
+  }
+
+  if (cmd.includes('open') || cmd.includes('navigate') || cmd.includes('go to') ||
+      cmd.includes('show') || cmd.includes('switch to') || cmd.includes('take me to') ||
+      cmd.includes('take me') || cmd.includes('page')) {
+    if (navigateIfMatch()) return
+  }
+
+  // ── Direct navigation (without open/navigate prefix) ──────────────
+  // e.g. "jobs" / "settings" / "brain"
+  if (navigateIfMatch()) return
+
+  // ── Feature-specific voice commands ───────────────────────────────
+  if (cmd.includes('scan') && cmd.includes('job')) {
+    void window.barq?.jobs.scan()
+    return
+  } else if (cmd.includes('trend') || cmd.includes('trending')) {
+    void window.barq?.social.trends()
+    return
+  } else if (cmd.includes('create note') || cmd.includes('new note')) {
+    nav('/notes')
+    return
   } else if (cmd.includes('weather')) {
     const city = cmd.replace('weather', '').replace('in', '').trim() || 'London'
     nav(`/web?weather=${encodeURIComponent(city)}`)
+    return
   } else if (cmd.includes('stock') || cmd.includes('price')) {
     nav('/web?tab=stocks')
-  } else if (cmd.includes('create note') || cmd.includes('note')) {
-    nav('/notes')
+    return
   } else if (cmd.includes('approval') && cmd.includes('clear')) {
     void window.barq?.system.command.clearApprovals()
+    return
   } else if (cmd.includes('approval')) {
     nav('/settings')
+    return
+  } else if (cmd.includes('briefing') || cmd.includes('morning report')) {
+    nav('/agent')
+    return
+  } else if (cmd.includes('weekly review') || cmd.includes('week review')) {
+    nav('/agent')
+    return
   } else if (cmd.includes('diagnostics') || cmd.includes('system status')) {
     window.dispatchEvent(
       new CustomEvent('barq:voice-command', { detail: { action: 'show_diagnostics' } })
     )
+    return
   } else if (cmd.includes('overlay')) {
     if (cmd.includes('show')) {
       window.barq?.overlay.show()
@@ -88,8 +140,42 @@ function processQuickCommand(cmd: string, nav: (route: string) => void): void {
     } else {
       window.barq?.overlay.toggle()
     }
-  } else if (cmd.includes('voice') || cmd.includes('listen')) {
+    return
+  } else if (cmd.includes('voice') || cmd.includes('listen') || cmd.includes('wake word')) {
     void window.barq?.voice.start()
+    return
+  }
+
+  // ── Second Brain Integration ────────────────────────────────────────
+  if (cmd.includes('search second brain') || cmd.includes('search my notes') || cmd.includes('find in second brain')) {
+    const query = cmd.replace(/search (second brain|my notes|find in second brain)/gi, '').trim()
+    if (query) {
+      void window.barq?.api('POST', '/second-brain/search', { query, mode: 'hybrid', limit: 10 })
+    }
+    nav('/unified-knowledge')
+    return
+  } else if (cmd.includes('sync knowledge') || cmd.includes('sync second brain') || cmd.includes('sync everything')) {
+    void window.barq?.api('POST', '/second-brain/sync/full', { direction: 'both' })
+    return
+  } else if (cmd.includes('sync status') || cmd.includes('sync status')) {
+    nav('/unified-knowledge')
+    return
+  } else if (cmd.includes('second brain') && (cmd.includes('start sync') || cmd.includes('auto sync'))) {
+    void window.barq?.api('POST', '/second-brain/sync/auto/start', { interval_seconds: 300 })
+    return
+  } else if (cmd.includes('second brain') && cmd.includes('stop sync')) {
+    void window.barq?.api('POST', '/second-brain/sync/auto/stop')
+    return
+  } else if (cmd.includes('second brain status') || cmd.includes('second brain connected')) {
+    nav('/unified-knowledge')
+    return
+  } else if (cmd.includes('chat with second brain') || cmd.includes('ask second brain') || cmd.includes('second brain question')) {
+    const question = cmd.replace(/(chat with |ask |question from )?second brain/gi, '').trim()
+    if (question) {
+      void window.barq?.api('POST', '/second-brain/chat', { message: question })
+    }
+    nav('/unified-knowledge')
+    return
   } else {
     void window.barq?.voice.command(cmd)
   }
@@ -154,6 +240,7 @@ function routeToTab(pathname: string): NavTab {
   if (pathname.startsWith('/notes')) return 'NOTES'
   if (pathname.startsWith('/gallery')) return 'GALLERY'
   if (pathname.startsWith('/phone')) return 'PHONE'
+  if (pathname.startsWith('/voice-skills')) return 'VOICE'
   if (pathname.startsWith('/settings')) return 'SETTINGS'
   return 'DASHBOARD'
 }
@@ -179,6 +266,7 @@ function AppContent(): JSX.Element {
       GALLERY: '/gallery',
       PHONE: '/phone',
       SETTINGS: '/settings',
+      VOICE: '/voice-skills',
     }
     navigate(routeMap[tab])
   }, [navigate])
@@ -339,6 +427,8 @@ function AppContent(): JSX.Element {
                   <Route path="/apis" element={<AnimatedPage><PublicApisPage /></AnimatedPage>} />
                   <Route path="/widgets" element={<AnimatedPage><WidgetsPage /></AnimatedPage>} />
                   <Route path="/evolution" element={<AnimatedPage><EvolutionPage /></AnimatedPage>} />
+                  <Route path="/voice-skills" element={<AnimatedPage><VoiceSkillsPage /></AnimatedPage>} />
+                  <Route path="/unified-knowledge" element={<AnimatedPage><UnifiedKnowledgePage /></AnimatedPage>} />
                 </Routes>
                 </AppErrorBoundary>
               </AnimatePresence>
@@ -372,6 +462,8 @@ function AppContent(): JSX.Element {
 
 // ─── Root App ──────────────────────────────────────────────────────────────
 
+import { Agentation } from 'agentation'
+
 function App(): JSX.Element {
   return (
     <ThemeProvider>
@@ -382,7 +474,9 @@ function App(): JSX.Element {
           v7_relativeSplatPath: true,
         }}
       >
-        <AppContent />        </MemoryRouter>
+        <AppContent />
+        <Agentation />
+      </MemoryRouter>
       </VoiceProvider>
     </ThemeProvider>
   )
