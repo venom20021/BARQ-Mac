@@ -17,6 +17,7 @@ import { DynamicContentPanel } from './components/DynamicContentPanel'
 import type { RichContent } from './components/DynamicContentTypes'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { VoiceProvider, useVoice } from './contexts/VoiceContext'
+import { api as barqApi } from './utils/api'
 import { DashboardPage } from './pages/DashboardPage'
 import { AnalyticsPage } from './pages/AnalyticsPage'
 import { JobsPage } from './pages/JobsPage'
@@ -150,21 +151,21 @@ function processQuickCommand(cmd: string, nav: (route: string) => void): void {
   if (cmd.includes('search second brain') || cmd.includes('search my notes') || cmd.includes('find in second brain')) {
     const query = cmd.replace(/search (second brain|my notes|find in second brain)/gi, '').trim()
     if (query) {
-      void window.barq?.api('POST', '/second-brain/search', { query, mode: 'hybrid', limit: 10 })
+      void barqApi('/second-brain/search', { query, mode: 'hybrid', limit: 10 })
     }
     nav('/unified-knowledge')
     return
   } else if (cmd.includes('sync knowledge') || cmd.includes('sync second brain') || cmd.includes('sync everything')) {
-    void window.barq?.api('POST', '/second-brain/sync/full', { direction: 'both' })
+    void barqApi('/second-brain/sync/full', { direction: 'both' })
     return
   } else if (cmd.includes('sync status') || cmd.includes('sync status')) {
     nav('/unified-knowledge')
     return
   } else if (cmd.includes('second brain') && (cmd.includes('start sync') || cmd.includes('auto sync'))) {
-    void window.barq?.api('POST', '/second-brain/sync/auto/start', { interval_seconds: 300 })
+    void barqApi('/second-brain/sync/auto/start', { interval_seconds: 300 })
     return
   } else if (cmd.includes('second brain') && cmd.includes('stop sync')) {
-    void window.barq?.api('POST', '/second-brain/sync/auto/stop')
+    void barqApi('/second-brain/sync/auto/stop')
     return
   } else if (cmd.includes('second brain status') || cmd.includes('second brain connected')) {
     nav('/unified-knowledge')
@@ -172,7 +173,7 @@ function processQuickCommand(cmd: string, nav: (route: string) => void): void {
   } else if (cmd.includes('chat with second brain') || cmd.includes('ask second brain') || cmd.includes('second brain question')) {
     const question = cmd.replace(/(chat with |ask |question from )?second brain/gi, '').trim()
     if (question) {
-      void window.barq?.api('POST', '/second-brain/chat', { message: question })
+      void barqApi('/second-brain/chat', { message: question })
     }
     nav('/unified-knowledge')
     return
