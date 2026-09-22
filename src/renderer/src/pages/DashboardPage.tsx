@@ -94,16 +94,16 @@ const ParticleSphere3D = lazy(() =>
   import('../components/ParticleSphere3D').then(mod => ({ default: mod.ParticleSphere3D }))
 )
 
-// Lazy-load the Humanoid Dashboard
-const HumanoidDashboard = lazy(() =>
-  import('../components/dashboard/humanoid').then(mod => ({ default: mod.HumanoidDashboard }))
+// Lazy-load the Particle Companion (replaces the humanoid view)
+const CompanionDashboard = lazy(() =>
+  import('../components/dashboard/companion').then(mod => ({ default: mod.CompanionDashboard }))
 )
 
-// ─── Error Boundary for Humanoid view (isolated crash recovery) ─────
+// ─── Error Boundary for Companion view (isolated crash recovery) ─────
 
 interface HErrorState { hasError: boolean; message?: string }
 
-class HumanoidErrorBoundary extends Component<{ children: ReactNode; onFallback: () => void }, HErrorState> {
+class CompanionErrorBoundary extends Component<{ children: ReactNode; onFallback: () => void }, HErrorState> {
   state: HErrorState = { hasError: false }
 
   static getDerivedStateFromError(e: Error): HErrorState {
@@ -111,16 +111,18 @@ class HumanoidErrorBoundary extends Component<{ children: ReactNode; onFallback:
   }
 
   componentDidCatch(error: Error): void {
-    console.error('[HumanoidDashboard] CRASH:', error)
+    console.error('[CompanionDashboard] CRASH:', error)
   }
 
   render(): ReactNode {
     if (this.state.hasError) {
       return (
-        <div className="w-full h-full flex items-center justify-center bg-black">
+        <div className="w-full h-full flex items-center justify-center bg-void-900">
           <div className="text-center max-w-sm">
-            <div className="text-3xl mb-4">⚠️</div>
-            <p className="text-sm font-mono text-red-400 mb-2">Humanoid view crashed</p>
+            <div className="mx-auto mb-4 w-10 h-10 rounded-full border border-red-500/30 flex items-center justify-center">
+              <span className="text-red-400 font-mono text-lg leading-none">!</span>
+            </div>
+            <p className="text-sm font-mono text-red-400 mb-2">Companion view crashed</p>
             <p className="text-xs font-mono text-white/30 mb-4 break-all">{this.state.message}</p>
             <button
               onClick={this.props.onFallback}
@@ -409,11 +411,13 @@ export function DashboardPage(): JSX.Element {
   } = voice
   const [userName, setUserName] = useState(getStoredUserName)
 
-  // ── Dashboard view mode: 'network' (existing) or 'humanoid' (new) ──
-  // Restore the user's last choice (persisted by toggleDashboardView).
-  const [dashboardView, setDashboardView] = useState<'network' | 'humanoid'>(() => {
+  // ── Dashboard view mode: 'network' (agent graph) or 'companion' (particles) ──
+  // Restore the user's last choice. 'humanoid' is the retired value from the view
+  // this replaced — migrate it so an existing preference isn't silently dropped.
+  const [dashboardView, setDashboardView] = useState<'network' | 'companion'>(() => {
     try {
-      return localStorage.getItem('barq_dashboard_view') === 'humanoid' ? 'humanoid' : 'network'
+      const stored = localStorage.getItem('barq_dashboard_view')
+      return stored === 'companion' || stored === 'humanoid' ? 'companion' : 'network'
     } catch {
       return 'network'
     }
@@ -421,7 +425,7 @@ export function DashboardPage(): JSX.Element {
 
   const toggleDashboardView = useCallback(() => {
     setDashboardView(prev => {
-      const next = prev === 'network' ? 'humanoid' : 'network'
+      const next = prev === 'network' ? 'companion' : 'network'
       try { localStorage.setItem('barq_dashboard_view', next) } catch { /* ignore */ }
       return next
     })
@@ -796,10 +800,10 @@ export function DashboardPage(): JSX.Element {
             </div>
           </div>
         }>
-          {dashboardView === 'humanoid' ? (
-            <HumanoidErrorBoundary onFallback={toggleDashboardView}>
-              <HumanoidDashboard />
-            </HumanoidErrorBoundary>
+          {dashboardView === 'companion' ? (
+            <CompanionErrorBoundary onFallback={toggleDashboardView}>
+              <CompanionDashboard />
+            </CompanionErrorBoundary>
           ) : (
             <ParticleSphere3D
               activeAgent={activeAgent}
@@ -826,15 +830,15 @@ export function DashboardPage(): JSX.Element {
         <button
           onClick={toggleDashboardView}
           className="flex items-center gap-2 px-3 py-1.5 rounded-lg backdrop-blur-md bg-white/5 border border-white/10 hover:bg-white/10 hover:border-cyan-500/30 transition-all duration-300 group"
-          title={`Switch to ${dashboardView === 'network' ? 'Humanoid' : 'Network'} view`}
+          title={`Switch to ${dashboardView === 'network' ? 'Companion' : 'Network'} view`}
         >
-          <div className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${dashboardView === 'humanoid' ? 'bg-cyan-400 shadow-[0_0_6px_rgba(0,229,255,0.5)]' : 'bg-white/20'}`} />
+          <div className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${dashboardView === 'companion' ? 'bg-cyan-400 shadow-[0_0_6px_rgba(0,229,255,0.5)]' : 'bg-white/20'}`} />
           <span className="text-[9px] font-mono text-white/40 tracking-[0.15em] uppercase group-hover:text-white/60 transition-colors duration-300">
-            {dashboardView === 'network' ? 'Network' : 'Humanoid'}
+            {dashboardView === 'network' ? 'Network' : 'Companion'}
           </span>
           <span className="text-[8px] font-mono text-white/20">|</span>
           <span className="text-[9px] font-mono text-white/25 tracking-wider group-hover:text-cyan-300/60 transition-colors duration-300">
-            {dashboardView === 'network' ? 'Humanoid' : 'Network'}
+            {dashboardView === 'network' ? 'Companion' : 'Network'}
           </span>
         </button>
       </div>
