@@ -18,8 +18,8 @@ importers:
         specifier: ^3.0.4
         version: 3.0.4(@react-three/fiber@8.18.0(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(three@0.185.1))(@types/three@0.185.4)(react@18.3.1)(three@0.185.1)
       '@tsparticles/react':
-        specifier: ^3.0.0
-        version: 3.0.0(@tsparticles/engine@3.9.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: ^4.4.0
+        version: 4.4.0(@tsparticles/engine@4.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@tsparticles/slim':
         specifier: ^4.3.1
         version: 4.3.1
@@ -871,12 +871,11 @@ packages:
     peerDependencies:
       '@tsparticles/engine': 4.3.1
 
-  '@tsparticles/engine@3.9.1':
-    resolution: {integrity: sha512-DpdgAhWMZ3Eh2gyxik8FXS6BKZ8vyea+Eu5BC4epsahqTGY9V3JGGJcXC6lRJx6cPMAx1A0FaQAojPF3v6rkmQ==}
-    deprecated: Please update to version 4.1.1
-
   '@tsparticles/engine@4.3.1':
     resolution: {integrity: sha512-WB8oyO0uUNSN+cbNCqqeolc1/qt0IONKD5vlRpNuIf4R2D5d4vjYSjQBzRbmS8MuldrUQZygMWwjx6yd3nkGNA==}
+
+  '@tsparticles/engine@4.4.0':
+    resolution: {integrity: sha512-zUDykZ7qBqHYMXr6NveXg51kBlvfaQKMmWkMJ8nT7fC4dXdNayb1+TxOfAoqH9/U/u0Eyr0YE+72ai/ymS0uww==}
 
   '@tsparticles/interaction-external-attract@4.3.1':
     resolution: {integrity: sha512-Ds7nnjzYbHtwDJfqfFtLLUclEnLG11PD5hEkHDC+fXQXzzpfOM7pdaWRd4q1fLXY0tlVXi+koWZU4xIexAIkxg==}
@@ -1003,11 +1002,10 @@ packages:
     peerDependencies:
       '@tsparticles/engine': 4.3.1
 
-  '@tsparticles/react@3.0.0':
-    resolution: {integrity: sha512-hjGEtTT1cwv6BcjL+GcVgH++KYs52bIuQGW3PWv7z3tMa8g0bd6RI/vWSLj7p//NZ3uTjEIeilYIUPBh7Jfq/Q==}
-    deprecated: Please update to version 4.1.1
+  '@tsparticles/react@4.4.0':
+    resolution: {integrity: sha512-vywNLCJi7N/6eY92wjJ7ePwvkMsnKnfm3sU5jPH6ggZxWHCmotSmZyihtlsC3jPa5tHpCidNprQKrQctACa2kw==}
     peerDependencies:
-      '@tsparticles/engine': ^3.0.2
+      '@tsparticles/engine': 4.4.0
       react: '>=16.8.0'
       react-dom: '>=16.8.0'
 
@@ -4589,9 +4587,9 @@ snapshots:
     dependencies:
       '@tsparticles/engine': 4.3.1
 
-  '@tsparticles/engine@3.9.1': {}
-
   '@tsparticles/engine@4.3.1': {}
+
+  '@tsparticles/engine@4.4.0': {}
 
   '@tsparticles/interaction-external-attract@4.3.1(@tsparticles/engine@4.3.1)(@tsparticles/plugin-interactivity@4.3.1(@tsparticles/engine@4.3.1))':
     dependencies:
@@ -4699,9 +4697,9 @@ snapshots:
     dependencies:
       '@tsparticles/engine': 4.3.1
 
-  '@tsparticles/react@3.0.0(@tsparticles/engine@3.9.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@tsparticles/react@4.4.0(@tsparticles/engine@4.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@tsparticles/engine': 3.9.1
+      '@tsparticles/engine': 4.4.0
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
