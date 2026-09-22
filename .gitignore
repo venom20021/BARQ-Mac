@@ -55,6 +55,9 @@ python/data/*.db-shm
 python/data/*.db-wal
 python/data/memory_bus.db
 python/memory/long_term.json
+# Per-day latency/evolution event logs (JSON), written by the sidecar at
+# runtime. Read via GET /voice/latency or `python -m voice.evolution_logger`.
+python/memory/evolution/
 
 # Python virtualenv — contains a full interpreter, never commit
 python/.venv/
