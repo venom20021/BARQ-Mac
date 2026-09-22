@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import threading
 import time
@@ -229,6 +230,49 @@ class EvolutionLogger:
             "daily_file": self._daily_path().name,
         }
 
+    def get_latency_report(
+        self,
+        event_types: Optional[list[str]] = None,
+        limit: int = 500,
+    ) -> dict[str, Any]:
+        """Percentile report for duration-bearing events.
+
+        ``get_summary()`` only reports an average, which is useless for latency:
+        one 3 s outlier hides behind nine fast wakes. This returns p50/p95 so a
+        regression in the tail is visible.
+
+        Args:
+            event_types: Restrict to these event types (None = all).
+            limit: Analyse only the most recent N events.
+
+        Returns:
+            ``{"event_types": {name: {count, p50_ms, p95_ms, min_ms, max_ms}},
+            "window": N}``
+        """
+        with self._events_lock:
+            events = list(self._events)
+
+        if event_types:
+            events = [e for e in events if e.event_type in event_types]
+        events = events[-limit:]
+
+        by_type: dict[str, list[float]] = {}
+        for e in events:
+            by_type.setdefault(e.event_type, []).append(e.duration_ms)
+
+        report: dict[str, dict[str, Any]] = {}
+        for et, values in by_type.items():
+            values.sort()
+            report[et] = {
+                "count": len(values),
+                "p50_ms": round(_percentile(values, 50), 1),
+                "p95_ms": round(_percentile(values, 95), 1),
+                "min_ms": round(values[0], 1),
+                "max_ms": round(values[-1], 1),
+            }
+
+        return {"event_types": report, "window": len(events)}
+
     def flush(self) -> None:
         """Force-flush all in-memory events to disk."""
         self._flush()
@@ -363,6 +407,83 @@ class TimingContext:
     async def __aexit__(self, *args: Any) -> None:
         self.duration_ms = (time.perf_counter() - self._start) * 1000
         self._logger.record(self.event_type, self.duration_ms, self.metadata)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  Voice-cycle timing — wake → audible response
+# ═════════════════════════════════════════════════════════════════════════════
+#
+# A "voice cycle" is one wake → conversation. ``mark_voice_cycle()`` stores each
+# event's duration as its OFFSET FROM THE CYCLE START, so every pairwise delta
+# (wake→connected, connected→greeting, wake→first audible audio) is derivable
+# from the recorded events without any extra plumbing.
+#
+# Why this exists: the pre-existing ``ttfb`` event is only recorded on the
+# Ollama text-chat path (ai/responder.py, metadata={"model": "ollama"}), so the
+# Gemini Live / Deepgram VOICE path — the one users actually feel — had no
+# numbers at all.
+
+_cycle_start: float = 0.0
+_cycle_first: set[str] = set()
+
+
+def begin_voice_cycle() -> None:
+    """Start a new voice cycle. Call at wake-word detection."""
+    global _cycle_start, _cycle_first
+    _cycle_start = time.perf_counter()
+    _cycle_first = set()
+
+
+def voice_cycle_age_ms() -> Optional[float]:
+    """Milliseconds since the current cycle began, or None if no cycle is open."""
+    if _cycle_start <= 0:
+        return None
+    return (time.perf_counter() - _cycle_start) * 1000
+
+
+def mark_voice_cycle(
+    event_type: str,
+    metadata: Optional[dict[str, Any]] = None,
+    once: bool = False,
+) -> Optional[float]:
+    """Record an event whose duration is the offset from the cycle start.
+
+    Args:
+        event_type: e.g. ``"voice_first_audio"``.
+        metadata: Extra context stored alongside the event.
+        once: Record only the first occurrence in this cycle — for single-shot
+            marks like the first audible audio, which would otherwise be
+            re-recorded on every audio chunk.
+
+    Returns:
+        The recorded offset in ms, or None if no cycle is open (or the mark was
+        already recorded and ``once`` was set).
+    """
+    global _cycle_first
+    if _cycle_start <= 0:
+        return None
+    if once:
+        if event_type in _cycle_first:
+            return None
+        _cycle_first.add(event_type)
+
+    offset_ms = (time.perf_counter() - _cycle_start) * 1000
+    get_evolution_logger().record(event_type, offset_ms, metadata)
+    return offset_ms
+
+
+def _percentile(sorted_values: list[float], pct: float) -> float:
+    """Linear-interpolated percentile of an already-sorted list."""
+    if not sorted_values:
+        return 0.0
+    if len(sorted_values) == 1:
+        return sorted_values[0]
+    k = (len(sorted_values) - 1) * (pct / 100.0)
+    lo = math.floor(k)
+    hi = math.ceil(k)
+    if lo == hi:
+        return sorted_values[int(k)]
+    return sorted_values[lo] * (hi - k) + sorted_values[hi] * (k - lo)
 
 
 # ═════════════════════════════════════════════════════════════════════════════

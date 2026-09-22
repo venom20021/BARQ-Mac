@@ -36,7 +36,7 @@ from . import (
 from .action_log import DANGER as ACTION_DANGER
 from .action_log import INFO, WARNING, get_recent_actions, log_action
 from .conversation_listener import ConversationListener
-from .evolution_logger import get_evolution_logger
+from .evolution_logger import begin_voice_cycle, get_evolution_logger, mark_voice_cycle
 from .websocket_manager import VoiceWSManager
 
 from memory.agent_memory_manager import pop_last_session
@@ -429,6 +429,10 @@ def _on_wake_word_callback(utterance: str = ""):
 
     # ── Step 0: Record wake word timestamp for TTFB tracking ──
     responder.wake_word_timestamp = time.perf_counter()
+    # Open a voice-latency cycle. Every mark recorded from here on stores its
+    # offset from this instant, so wake→connected→greeting→first-audio and any
+    # pairwise delta between them are all derivable. Read via GET /voice/latency.
+    begin_voice_cycle()
 
     # ── Step 1: Pause detector to free mic ──
     if wake_word_detector is not None:
@@ -449,6 +453,11 @@ def _on_wake_word_callback(utterance: str = ""):
         _time.sleep(0.05)
     else:
         print("[Voice] No wake word detector to pause")
+
+    # The detector must release the mic before the voice agent can open it, so
+    # this handoff sits inside wake→audio latency and is worth separating out
+    # from the connection and greeting costs.
+    mark_voice_cycle("voice_mic_released")
 
     # ── Step 2: Push instant "listening" state to frontend ──
     # Broadcast is handled inside _lightweight_wake_greeting() which runs
@@ -3269,4 +3278,75 @@ async def voice_status():
             {"transcript": c["transcript"], "confidence": c.get("confidence", 0.0), "created_at": c["created_at"]}
             for c in recent_commands
         ],
+    }
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  Voice latency baseline (Phase 0)
+# ═════════════════════════════════════════════════════════════════════════════
+
+# Cycle marks: duration is the OFFSET from the wake that opened the cycle, so
+# deltas between them are meaningful.
+_CYCLE_MARKS = (
+    "voice_mic_released",
+    "voice_connected",
+    "voice_greeting_sent",
+    "voice_first_audio",
+)
+
+# Plain durations, measured directly rather than relative to the wake.
+_STANDALONE_EVENTS = ("greeting_context_fetch", "voice_response_ms")
+
+
+@router.get("/latency")
+async def voice_latency(limit: int = 500):
+    """Voice-cycle latency baseline — the numbers that decide the LiveKit question.
+
+    Read the ``marks`` as offsets from the wake:
+      ``voice_connected``      wake → Gemini Live websocket handshake done
+      ``voice_greeting_sent``  wake → greeting handed to TTS
+      ``voice_first_audio``    wake → first PCM written to the speaker (headline)
+
+    And the ``standalone`` durations:
+      ``greeting_context_fetch``  weather/news fetch — cold ~1600 ms, cached ~0 ms
+      ``voice_response_ms``       user stopped speaking → agent started speaking
+
+    A cycle that has ``voice_connected`` but no ``voice_first_audio`` never
+    produced sound. ``cycles_observed`` counts completed cycles.
+    """
+    evo = get_evolution_logger()
+    evo.flush()  # keep the daily JSON file in step with this response
+
+    marks = evo.get_latency_report(list(_CYCLE_MARKS), limit=limit)["event_types"]
+    standalone = evo.get_latency_report(list(_STANDALONE_EVENTS), limit=limit)["event_types"]
+
+    def _p50(name: str) -> Optional[float]:
+        entry = marks.get(name)
+        return entry["p50_ms"] if entry else None
+
+    connected = _p50("voice_connected")
+    greeting = _p50("voice_greeting_sent")
+    first_audio = _p50("voice_first_audio")
+
+    # Differences of p50s — indicative only. True per-cycle deltas need the raw
+    # events, which are in ``recent`` (all offsets share one cycle origin).
+    derived: dict[str, Optional[float]] = {
+        "connect_ms": connected,
+        "greeting_path_ms": (
+            round(greeting - connected, 1)
+            if greeting is not None and connected is not None else None
+        ),
+        "greeting_to_audio_ms": (
+            round(first_audio - greeting, 1)
+            if first_audio is not None and greeting is not None else None
+        ),
+        "wake_to_first_audio_ms": first_audio,
+    }
+
+    return {
+        "cycles_observed": marks.get("voice_first_audio", {}).get("count", 0),
+        "marks": marks,
+        "standalone": standalone,
+        "derived_p50": derived,
+        "recent": evo.query(limit=15),
     }

@@ -25,6 +25,7 @@ from google.genai import types
 
 from config import get_settings
 from .agent_base import VoiceAgentBase
+from .evolution_logger import get_evolution_logger, mark_voice_cycle
 from .function_executor import execute_function, get_function_schemas
 
 LIVE_MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
@@ -90,6 +91,11 @@ class GeminiVoiceAgent(VoiceAgentBase):
         # in a row we treat the session as unrecoverable and reconnect
         # rather than spinning on errors forever.
         self._receive_error_streak = 0
+
+        # perf_counter of the user's most recent utterance, used by the play loop
+        # to measure response latency (user stopped → agent started speaking).
+        # 0.0 means "no utterance awaiting a response".
+        self._last_user_input_at: float = 0.0
 
         # Callbacks (wired by ConversationListener)
         self.on_interim_transcript = None
@@ -501,6 +507,22 @@ class GeminiVoiceAgent(VoiceAgentBase):
                 self._last_audio_at = time.time()
                 self._set_speaking(True)
 
+                # ── Voice-latency marks ──────────────────────────────────
+                # First audible audio of this wake is the headline number
+                # (wake → sound actually out of the speakers). ``once=True``
+                # because this block runs for every audio chunk.
+                mark_voice_cycle("voice_first_audio", once=True)
+
+                # First agent audio after the user's last utterance = response
+                # latency. Reset to 0 so it records once per turn, not per chunk.
+                if self._last_user_input_at > 0:
+                    get_evolution_logger().record(
+                        "voice_response_ms",
+                        (time.perf_counter() - self._last_user_input_at) * 1000,
+                        {"backend": "gemini"},
+                    )
+                    self._last_user_input_at = 0.0
+
                 # Batch up to ~200 ms of audio for smooth writes
                 batch = bytearray(chunk)
                 while len(batch) < 9600:  # 200 ms at 24 kHz / 16-bit
@@ -592,6 +614,10 @@ class GeminiVoiceAgent(VoiceAgentBase):
                     # Input transcription — what the user said
                     if sc.input_transcription and sc.input_transcription.text:
                         txt = sc.input_transcription.text.strip()
+                        if txt:
+                            # Timestamp the user's latest utterance so the play
+                            # loop can measure time-to-response.
+                            self._last_user_input_at = time.perf_counter()
                         if txt and self.on_final_transcript:
                             self.on_final_transcript(txt)
 

@@ -9,12 +9,13 @@ all speech processing. Say "nothing" to end the conversation.
 import asyncio
 import os
 import re
+import time
 from collections.abc import Awaitable
 from typing import Callable, Optional
 
 from ai.responder import BARQResponder
 from memory.agent_memory_manager import save_session_summary
-from voice.evolution_logger import get_evolution_logger
+from voice.evolution_logger import get_evolution_logger, mark_voice_cycle
 from voice.loop_utils import call_on_main_loop
 from voice.websocket_manager import VoiceWSManager
 from voice.speech import SpeechProcessor
@@ -249,6 +250,10 @@ class ConversationListener:
                         self._conversation_active = False
                         return
 
+                # Wake → websocket handshake complete. Marking here keeps the
+                # connection cost separable from the greeting + first-audio cost.
+                mark_voice_cycle("voice_connected")
+
                 # Wire up agent callbacks
                 agent.on_interim_transcript = lambda text: self.ws_manager.fire(
                     self.ws_manager.broadcast({
@@ -310,6 +315,7 @@ class ConversationListener:
                     )
                     print(f"[VoiceAgent] Greeting: '{greeting}'")
                     await agent.speak_text(greeting)
+                    mark_voice_cycle("voice_greeting_sent")
                 except Exception as e:
                     print(f"[VoiceAgent] Greeting TTS error (non-fatal): {e}")
 
@@ -429,7 +435,17 @@ class ConversationListener:
         try:
             from .greeting_context import fetch_greeting_context
 
+            _fetch_t0 = time.perf_counter()
             ctx = await fetch_greeting_context(city=weather_city, include_news=True)
+            # Recorded separately from the cycle marks because it is a plain
+            # duration, not an offset: a cache hit is ~0 ms, a cold fetch ~1600 ms
+            # (two sequential open-meteo round trips). This is the number the
+            # greeting-context cache is judged by.
+            self.evo_logger.record(
+                "greeting_context_fetch",
+                (time.perf_counter() - _fetch_t0) * 1000,
+                {"city": weather_city or "", "has_context": bool(ctx)},
+            )
             if ctx:
                 context_phrase = ctx
         except Exception:
