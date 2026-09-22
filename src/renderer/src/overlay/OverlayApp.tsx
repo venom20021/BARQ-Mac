@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { OverlayClock } from './OverlayClock'
 import { OverlayWeather } from './OverlayWeather'
 import { OverlayStats } from './OverlayStats'
@@ -67,64 +67,26 @@ export function OverlayApp(): JSX.Element {
     overlay?: {
       hide: () => void
       openMain: () => void
-      moveBy: (deltaX: number, deltaY: number) => void
     }
   }).overlay
 
-  // ─── Custom drag support ────────────────────────────────────────────────
-  const dragState = useRef<{ lastScreenX: number; lastScreenY: number } | null>(null)
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // Only left button, not on close button
-    if (e.button !== 0 || (e.target as HTMLElement).closest('.overlay-close-btn')) return
-
-    e.preventDefault()
-
-    // Track the last screen position for incremental delta calculation
-    dragState.current = {
-      lastScreenX: e.screenX,
-      lastScreenY: e.screenY,
-    }
-
-    const handleMouseMove = (moveEvent: MouseEvent) => {
-      if (!dragState.current) return
-      // Calculate delta from last mouse position (incremental)
-      const deltaX = moveEvent.screenX - dragState.current.lastScreenX
-      const deltaY = moveEvent.screenY - dragState.current.lastScreenY
-      dragState.current.lastScreenX = moveEvent.screenX
-      dragState.current.lastScreenY = moveEvent.screenY
-
-      // Send incremental delta to main process which adds it to window position
-      if (overlayApi?.moveBy) {
-        overlayApi.moveBy(deltaX, deltaY)
-      }
-    }
-
-    const handleMouseUp = () => {
-      dragState.current = null
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-  }, [overlayApi])
+  // Dragging is native: `.overlay-container` uses -webkit-app-region: drag,
+  // so the OS moves the window directly (zero IPC, no stickiness). Interactive
+  // bits must opt out with -webkit-app-region: no-drag in styles.css.
 
   const handleClose = useCallback(() => {
     overlayApi?.hide()
   }, [overlayApi])
 
-  const handleDoubleClick = useCallback(() => {
+  // The clock panel is a no-drag zone (see styles.css) so it can receive
+  // clicks/double-clicks while the rest of the panel drags the window.
+  const handleOpenMain = useCallback(() => {
     overlayApi?.openMain()
   }, [overlayApi])
 
   return (
-    <div
-      className="overlay-container"
-      onMouseDown={handleMouseDown}
-      onDoubleClick={handleDoubleClick}
-    >
-      {/* Drag handle area */}
+    <div className="overlay-container">
+      {/* Drag handle area (visual affordance; whole panel drags natively) */}
       <div className="overlay-drag-handle">
         <div className="drag-handle-dots">
           <span /><span /><span />
@@ -137,7 +99,9 @@ export function OverlayApp(): JSX.Element {
       </button>
 
       {/* Widgets */}
-      <OverlayClock />
+      <div className="overlay-dblclick-zone" onDoubleClick={handleOpenMain} title="Double-click to open BARQ">
+        <OverlayClock />
+      </div>
       <OverlayWeather weather={weather} />
       <OverlayStats stats={stats} />
       <OverlayStocks stocks={stocks} />

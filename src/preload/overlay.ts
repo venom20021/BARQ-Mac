@@ -25,10 +25,7 @@ contextBridge.exposeInMainWorld('overlay', {
   // Remove listeners
   removeAllListeners: (channel: string) => {
     ipcRenderer.removeAllListeners(channel)
-  },
-
-  // Move overlay window by delta (custom drag — incremental from last screen pos)
-  moveBy: (deltaX: number, deltaY: number) => ipcRenderer.send('overlay:move-to', { deltaX, deltaY })
+  }
 })
 
 export interface OverlayUpdatePayload {

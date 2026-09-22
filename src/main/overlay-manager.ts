@@ -18,6 +18,8 @@ import { pythonBridge } from './python-bridge'
 
 let overlayWindow: BrowserWindow | null = null
 let overlayVisible = false
+let userHasMoved = false // true once the user drags the overlay; suppresses auto re-snap on show
+let programmaticMove = false // set while we call setPosition so 'moved' ignores it
 let statsInterval: ReturnType<typeof setInterval> | null = null
 let weatherInterval: ReturnType<typeof setInterval> | null = null
 let stocksInterval: ReturnType<typeof setInterval> | null = null
@@ -28,6 +30,15 @@ let weatherCity = 'London'
 let stockTicker = 'AAPL'
 
 // ─── Window Management ─────────────────────────────────────────────────────
+
+/** Move the overlay without the 'moved' handler mistaking it for a user drag. */
+function setOverlayPosition(win: BrowserWindow, x: number, y: number): void {
+  programmaticMove = true
+  win.setPosition(x, y)
+  setImmediate(() => {
+    programmaticMove = false
+  })
+}
 
 function getOverlayPosition(): { x: number; y: number } {
   const cursor = screen.getCursorScreenPoint()
@@ -91,6 +102,26 @@ export function createOverlayWindow(): BrowserWindow {
     overlayVisible = false
   })
 
+  // Fires whenever the window moves — native drags arrive here with
+  // programmaticMove === false, so we remember the user's spot and clamp
+  // the window fully back inside the work area (no cropped edges).
+  overlayWindow.on('moved', () => {
+    if (!overlayWindow || overlayWindow.isDestroyed()) return
+    if (programmaticMove) return
+    userHasMoved = true
+    const bounds = overlayWindow.getBounds()
+    const display = screen.getDisplayNearestPoint({
+      x: Math.round(bounds.x + bounds.width / 2),
+      y: Math.round(bounds.y + bounds.height / 2),
+    })
+    const wa = display.workArea
+    const x = Math.max(wa.x, Math.min(bounds.x, wa.x + wa.width - bounds.width))
+    const y = Math.max(wa.y, Math.min(bounds.y, wa.y + wa.height - bounds.height))
+    if (x !== bounds.x || y !== bounds.y) {
+      setOverlayPosition(overlayWindow, x, y)
+    }
+  })
+
   return overlayWindow
 }
 
@@ -109,9 +140,12 @@ export async function showOverlay(): Promise<void> {
   const win = overlayWindow || createOverlayWindow()
   if (win.isDestroyed()) return
 
-  // Show window immediately — no waiting for backend
-  const pos = getOverlayPosition()
-  win.setPosition(pos.x, pos.y)
+  // Show window immediately — no waiting for backend. If the user dragged it
+  // before, keep their position; otherwise snap to bottom-right of the display.
+  if (!userHasMoved) {
+    const pos = getOverlayPosition()
+    setOverlayPosition(win, pos.x, pos.y)
+  }
   win.showInactive()
   overlayVisible = true
   notifyToggle(true)
@@ -313,8 +347,23 @@ export function initOverlayManager(): void {
   if (!_displayMetricsListenerRegistered) {
     screen.on('display-metrics-changed', () => {
       if (overlayWindow && !overlayWindow.isDestroyed() && overlayVisible) {
-        const newPos = getOverlayPosition()
-        overlayWindow.setPosition(newPos.x, newPos.y)
+        if (userHasMoved) {
+          // Respect the user's chosen spot; just pull them back on-screen
+          const b = overlayWindow.getBounds()
+          const d = screen.getDisplayNearestPoint({
+            x: Math.round(b.x + b.width / 2),
+            y: Math.round(b.y + b.height / 2),
+          })
+          const wa = d.workArea
+          setOverlayPosition(
+            overlayWindow,
+            Math.max(wa.x, Math.min(b.x, wa.x + wa.width - b.width)),
+            Math.max(wa.y, Math.min(b.y, wa.y + wa.height - b.height))
+          )
+        } else {
+          const newPos = getOverlayPosition()
+          setOverlayPosition(overlayWindow, newPos.x, newPos.y)
+        }
       }
     })
     _displayMetricsListenerRegistered = true
@@ -323,34 +372,9 @@ export function initOverlayManager(): void {
   ipcMain.on('overlay:show', () => showOverlay())
   ipcMain.on('overlay:hide', () => hideOverlay())
 
-  ipcMain.on('overlay:move-to', (_event, { deltaX, deltaY }: { deltaX: number; deltaY: number }) => {
-    if (!overlayWindow || overlayWindow.isDestroyed()) return
-
-    const [cx, cy] = overlayWindow.getPosition()
-    const bounds = overlayWindow.getBounds()
-    const newX = cx + Math.round(deltaX)
-    const newY = cy + Math.round(deltaY)
-
-    // Find the display the window is on (or closest to)
-    const displays = screen.getAllDisplays()
-    const currentDisplay = displays.find(d => {
-      const wa = d.workArea
-      return (
-        newX + bounds.width / 2 >= wa.x &&
-        newX + bounds.width / 2 <= wa.x + wa.width &&
-        newY + bounds.height / 2 >= wa.y &&
-        newY + bounds.height / 2 <= wa.y + wa.height
-      )
-    }) || screen.getDisplayNearestPoint({ x: newX, y: newY })
-
-    const wa = currentDisplay.workArea
-    // Clamp so at least 20% of the overlay stays visible on any edge
-    const minVisible = 60
-    const clampedX = Math.max(wa.x - bounds.width + minVisible, Math.min(wa.x + wa.width - minVisible, newX))
-    const clampedY = Math.max(wa.y - bounds.height + minVisible, Math.min(wa.y + wa.height - minVisible, newY))
-
-    overlayWindow.setPosition(clampedX, clampedY)
-  })
+  // NOTE: 'overlay:move-to' removed — dragging is now native via
+  // -webkit-app-region: drag (renderer OverlayApp), which eliminated the
+  // IPC-round-trip stickiness. Position clamping happens on 'moved' above.
 
   ipcMain.on('overlay:refresh', () => {
     if (overlayVisible) {

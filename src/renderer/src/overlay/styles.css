@@ -17,13 +17,19 @@ html, body {
   overflow: hidden;
   background: transparent;
   font-family: 'Rajdhani', 'Exo 2', sans-serif;
-  -webkit-app-region: no-drag;
+  -webkit-app-region: drag; /* transparent margin + window edge drag natively; panel opts out below */
   user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center; /* center panel in the transparent margin room for the drop shadow */
 }
 
 #root {
   width: 100%;
   height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ─── Overlay Container ──────────────────────────────────────────────────── */
@@ -31,10 +37,12 @@ html, body {
 .overlay-container {
   width: 520px;
   height: 130px;
+  flex: none;
   display: flex;
   align-items: stretch;
   gap: 1px;
   padding: 6px;
+  -webkit-app-region: no-drag; /* panel interior is interactive; grip strip re-enables drag */
   background: rgba(9, 10, 18, 0.65);
   backdrop-filter: blur(20px) saturate(1.4);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
@@ -297,8 +305,9 @@ html, body {
   top: 0;
   left: 0;
   right: 0;
-  height: 20px;
+  height: 26px;
   z-index: 10;
+  -webkit-app-region: drag; /* native OS drag here — zero IPC, no stickiness */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -384,4 +393,10 @@ html, body {
 .overlay-close-btn:hover {
   background: rgba(239, 68, 68, 0.2);
   color: rgba(239, 68, 68, 0.8);
+}
+
+/* ─── Double-click zone (wraps clock; transparent to layout) ─────────────── */
+
+.overlay-dblclick-zone {
+  display: contents;
 }
