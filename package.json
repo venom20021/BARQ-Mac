@@ -59,7 +59,7 @@
     "electron": "^32.3.3",
     "electron-builder": "^25.0.5",
     "electron-updater": "^6.8.9",
-    "electron-vite": "^2.3.0",
+    "electron-vite": "^5.0.0",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.1.1",
     "happy-dom": "^20.10.6",
