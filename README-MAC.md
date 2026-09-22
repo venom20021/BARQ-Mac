@@ -40,14 +40,14 @@ launchctl load ~/Library/LaunchAgents/com.barq.mac.sidecar.plist
 ## Backend
 
 - **Voice** (mic, wake word, TTS): local sidecar on `127.0.0.1:8956`
-- **Heavy API** (chat LLM, jobs, knowledge graphs): Oracle Cloud VM (`SIDECAR_REMOTE_URL`, default `http://155.248.247.224`)
+- **Heavy API** (chat LLM, jobs, knowledge graphs): LAN host — the HP AIO Ubuntu box (`SIDECAR_REMOTE_URL`, default `http://sai-prabhat-HP-All-in-One-22-dd0xxx.local:8956`)
 - Telegram: morning briefings + job alerts (see `.env`: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`)
 
 ## Health checks
 
 ```bash
 curl http://127.0.0.1:8956/health      # local sidecar
-curl http://155.248.247.224/health     # oracle backend
+curl http://sai-prabhat-HP-All-in-One-22-dd0xxx.local:8956/health   # LAN backend
 tail -f /tmp/barq-mac.log              # sidecar logs
 ```
 

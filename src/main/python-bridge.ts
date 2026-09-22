@@ -9,12 +9,12 @@ const SIDECAR_HOST = '127.0.0.1'
 const SIDECAR_URL = `http://${SIDECAR_HOST}:${SIDECAR_PORT}`
 
 /**
- * Default remote URL — the Oracle VM backend.
+ * Default remote URL — the HP AIO (Ubuntu) backend on the LAN.
  * When reachable, non-voice API calls go to this URL.
  * Voice always runs locally (mic/speakers are on this machine).
  * Set SIDECAR_REMOTE_URL to override, or SIDECAR_AUTO_REMOTE=false to skip auto-connect.
  */
-const DEFAULT_REMOTE_URL = 'http://155.248.247.224'
+const DEFAULT_REMOTE_URL = 'http://sai-prabhat-HP-All-in-One-22-dd0xxx.local:8956'
 
 /**
  * Auto-remote mode: try the default remote URL first.
@@ -217,6 +217,25 @@ class PythonSidecar {
         } catch {
           console.warn('[PythonSidecar] Remote backend not reachable — local only')
         }
+      }
+
+      // ── Reuse an already-healthy local sidecar (e.g. launchd service on macOS) ──
+      // On Mac the sidecar runs as com.barq.mac.sidecar (auto-start at login).
+      // Spawning a second uvicorn would EADDRINUSE-crash-loop, so adopt the
+      // existing one instead. Voice still runs locally — same machine, same port.
+      try {
+        const probe = await fetch(`${SIDECAR_URL}/health`, { signal: AbortSignal.timeout(2000) })
+        const body = (await probe.json()) as { status?: string }
+        if (probe.ok && body?.status === 'ok') {
+          console.log('[PythonSidecar] ✅ Local sidecar already healthy (launchd) — reusing it, skipping spawn')
+          this.isRunning = true
+          this._startupComplete = true
+          this.startHealthChecks()
+          this._resolveStart()
+          return
+        }
+      } catch {
+        // Not running — fall through and spawn it ourselves
       }
 
       // ── ALWAYS start local Python for voice (mic/speakers are on this machine) ──

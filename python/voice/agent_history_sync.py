@@ -31,7 +31,7 @@ _MAX_ENTRIES = 200
 # prevents double-logging when a wake utterance is re-transcribed by the agent.
 _DEDUPE_WINDOW_S = 90.0
 # Default remote backend URL (matches the Electron bridge's DEFAULT_REMOTE_URL).
-_DEFAULT_REMOTE_URL = "http://155.248.247.224"
+_DEFAULT_REMOTE_URL = "http://sai-prabhat-HP-All-in-One-22-dd0xxx.local:8956"
 # Mirror write timeout — a slow/unreachable VM must never stall the pipeline.
 _MIRROR_TIMEOUT_S = 3.0
 

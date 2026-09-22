@@ -16,8 +16,8 @@
  * Usage:
  *   import { getBackendConfig } from '../utils/backendConfig'
  *   const config = await getBackendConfig()
- *   // config.httpUrl  → "http://155.248.247.224" or "http://127.0.0.1:8956"
- *   // config.wsUrl    → "ws://155.248.247.224" or "ws://127.0.0.1:8956"
+ *   // config.httpUrl  → "http://sai-prabhat-HP-All-in-One-22-dd0xxx.local:8956" or "http://127.0.0.1:8956"
+ *   // config.wsUrl    → "ws://sai-prabhat-HP-All-in-One-22-dd0xxx.local:8956" or "ws://127.0.0.1:8956"
  *   // config.isRemote → true | false
  */
 

@@ -119,7 +119,7 @@ export function SettingsPage(): JSX.Element {
 
   // ─── Cloud Connection State ──────────────────────────────────
   const [cloudMode, setCloudMode] = useState(false)
-  const [cloudUrl, setCloudUrl] = useState('http://155.248.247.224')
+  const [cloudUrl, setCloudUrl] = useState('http://sai-prabhat-HP-All-in-One-22-dd0xxx.local:8956')
   const [cloudModeLoading, setCloudModeLoading] = useState(true)
   const [cloudModeStatus, setCloudModeStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking')
   const [cloudModeMsg, setCloudModeMsg] = useState('')

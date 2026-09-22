@@ -24,6 +24,8 @@
 
     <key>EnvironmentVariables</key>
     <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
         <key>SIDECAR_PORT</key>
         <string>8956</string>
         <key>BARQ_SKIP_TELEGRAM</key>

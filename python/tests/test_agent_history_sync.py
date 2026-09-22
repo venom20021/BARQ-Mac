@@ -21,6 +21,7 @@ import pytest
 from database import settings_dao
 from voice.agent_history_sync import (
     VOICE_COMMANDS_KEY,
+    _DEFAULT_REMOTE_URL,
     _mirror_voice_commands,
     _remote_url,
     persist_voice_utterance,
@@ -151,11 +152,15 @@ def test_remote_url_env_override(monkeypatch):
 
 
 def test_remote_url_default():
-    """Without env, the app's default remote URL is used."""
+    """Without env, the app's default remote URL is used.
+
+    Asserts against the module constant rather than a literal so moving the
+    backend (Oracle VM -> LAN host) can't silently rot this test.
+    """
     import os
     old = os.environ.pop("BARQ_REMOTE_URL", None)
     try:
-        assert _remote_url() == "http://155.248.247.224"
+        assert _remote_url() == _DEFAULT_REMOTE_URL
     finally:
         if old is not None:
             os.environ["BARQ_REMOTE_URL"] = old

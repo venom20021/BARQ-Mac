@@ -89,8 +89,8 @@ Built with **Python (FastAPI)** for the backend and **Electron + React** for the
 - **v1.0.1 is live** — the update feed (`latest.yml` + installer + blockmap) is published on [GitHub Releases](https://github.com/venom20021/B.A.R-Q-AI/releases/tag/v1.0.1); installed apps self-update over it
 - **Update feed** — `dist/latest.yml` (sha512 + size) is verified before install, with differential `.blockmap` support
 
-### ☁️ Cloud Mode (Oracle VM Backend)
-- **Auto-remote** — On startup the desktop app probes the Oracle VM backend (`http://155.248.247.224`); when reachable, non-voice API calls route to the cloud while voice stays local (mic/speakers are on your machine)
+### ☁️ Cloud Mode (LAN Backend)
+- **Auto-remote** — On startup the desktop app probes the LAN backend (`http://sai-prabhat-HP-All-in-One-22-dd0xxx.local:8956`); when reachable, non-voice API calls route there while voice stays local (mic/speakers are on your machine)
 - **Hybrid routing** — Voice endpoints (talk, listen, wake word) always use the local Python sidecar; jobs/social/system/LLM calls go remote; SSE chat streams via the main process to avoid CORS
 - **Manual override** — `SIDECAR_REMOTE_URL` to point elsewhere, `SIDECAR_AUTO_REMOTE=false` to force local-only
 
