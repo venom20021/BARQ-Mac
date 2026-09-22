@@ -15,7 +15,26 @@ times out, an empty string is returned and the greeting proceeds normally.
 """
 
 import asyncio
+import os
+import time
 from typing import Any, Optional
+
+# ── Cache ────────────────────────────────────────────────────────────────────
+# The wake path used to pay the full fetch (measured ~1.65s: geocode + forecast
+# are two SEQUENTIAL open-meteo round trips) before the greeting TTS, on every
+# single wake.  Weather and headlines do not change minute to minute, so the
+# assembled phrase is cached per (city, include_news).
+#
+# Empty results are cached too: a city that fails or has nothing noteworthy
+# should not re-stall every wake.  Tune with GREETING_CONTEXT_TTL (seconds);
+# 0 disables the cache.
+_CACHE_TTL_S = float(os.getenv("GREETING_CONTEXT_TTL", "300"))
+_cache: dict[str, tuple[float, str]] = {}
+
+
+def clear_greeting_cache() -> None:
+    """Drop cached context (settings changes, tests)."""
+    _cache.clear()
 
 
 async def _fetch_weather(city: str) -> str:
@@ -142,6 +161,7 @@ async def _fetch_headline() -> str:
 async def fetch_greeting_context(
     city: Optional[str] = None,
     include_news: bool = True,
+    use_cache: bool = True,
 ) -> str:
     """Fetch weather + news context for the spoken TTS greeting.
 
@@ -149,9 +169,12 @@ async def fetch_greeting_context(
     If both succeed, they're combined into a single sentence.
     If one fails, the other is still used.
 
+    Cached for _CACHE_TTL_S seconds (default 300s) — see the module docstring.
+
     Args:
         city: City name for weather lookup. Defaults to "my city".
         include_news: Whether to try fetching a news headline.
+        use_cache: Bypass the cache when False (forces a fresh fetch).
 
     Returns:
         A short context phrase like:
@@ -160,6 +183,25 @@ async def fetch_greeting_context(
         - "Looks like rain in London. Also, Bitcoin hits $68K." (both)
         - "" (nothing noteworthy, fall back to normal greeting)
     """
+    cache_key = f"{(city or 'my city').strip().lower()}|{int(include_news)}"
+    now = time.monotonic()
+    if use_cache and _CACHE_TTL_S > 0:
+        cached = _cache.get(cache_key)
+        if cached is not None and (now - cached[0]) < _CACHE_TTL_S:
+            return cached[1]
+
+    phrase = await _fetch_greeting_context_uncached(city, include_news)
+
+    if _CACHE_TTL_S > 0:
+        _cache[cache_key] = (time.monotonic(), phrase)
+    return phrase
+
+
+async def _fetch_greeting_context_uncached(
+    city: Optional[str],
+    include_news: bool,
+) -> str:
+    """The actual network fetch — see fetch_greeting_context for the contract."""
     tasks: list[Any] = []
 
     if city:

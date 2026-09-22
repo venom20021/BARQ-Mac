@@ -7,6 +7,7 @@ all speech processing. Say "nothing" to end the conversation.
 """
 
 import asyncio
+import os
 import re
 from collections.abc import Awaitable
 from typing import Callable, Optional
@@ -22,6 +23,13 @@ from voice.agent_history_sync import schedule_persist_voice_utterance
 # Type aliases for optional command callbacks
 ParseCommandFn = Callable[[str, bool, Optional[str]], Awaitable[dict]]
 ExecuteCommandFn = Callable[[str, dict], Awaitable[str]]
+
+# Max seconds to wait for the greeting context once the agent has connected.
+# The fetch is started BEFORE connect() so it normally finishes during the
+# websocket handshake; this is only a ceiling so a slow network can never delay
+# the greeting — and therefore the audio pipeline — indefinitely.
+# Tune with GREETING_CONTEXT_MAX_WAIT.
+_GREETING_CTX_MAX_WAIT_S = float(os.getenv("GREETING_CONTEXT_MAX_WAIT", "0.6"))
 
 # Module-level reference to the current ConversationListener singleton
 _conversation_listener = None
@@ -220,7 +228,14 @@ class ConversationListener:
             # orphaned and never reaches its own ``finally``.
             self._agent = agent
 
+            greeting_ctx_task: Optional[asyncio.Task] = None
             try:
+                # Start the greeting-context fetch BEFORE connecting so its HTTP
+                # round trips overlap the websocket handshake instead of blocking
+                # the greeting. Awaited inline in the greeting block below, this
+                # measured ~1.65s on the critical path of every single wake.
+                greeting_ctx_task = asyncio.ensure_future(self._greeting_context())
+
                 connected = await agent.connect()
                 if not connected:
                     print(f"[VoiceAgent] Failed to connect (attempt {attempt}/{max_retries})")
@@ -265,43 +280,28 @@ class ConversationListener:
                 # feels natural and informed rather than a hardcoded phrase.
                 try:
                     # Read user name from DB for personalized greeting
+                    # The greeting-context fetch has been running since before
+                    # connect(), so it is normally already done. Bound the wait so
+                    # a slow network can never stall the greeting, and shield it so
+                    # a timeout still lets the fetch finish and warm the cache.
                     user_name = None
-                    try:
-                        from database import settings_dao
-                        name_val = await call_on_main_loop(settings_dao.get_setting("user_name"))
-                        if name_val and name_val.strip():
-                            user_name = name_val.strip()
-                    except Exception:
-                        pass
-
-                    # Read weather city from DB for context
-                    # NOTE: No namespace passed — matches the convention in
-                    # routes.py's _gather_background_info() which also reads
-                    # weather_city without a namespace.
-                    weather_city = None
-                    try:
-                        city_val = await call_on_main_loop(settings_dao.get_setting("weather_city"))
-                        if city_val and city_val.strip():
-                            weather_city = city_val.strip()
-                    except Exception:
-                        pass
-
-                    # Fetch weather + news context in parallel (fast, non-blocking)
-                    # This runs before the greeting TTS so the greeting can include
-                    # "Looks like rain in Lucknow" — like Mark-L's Phase 2 briefing
-                    # folded directly into the greeting.
                     context_phrase = None
-                    try:
-                        from .greeting_context import fetch_greeting_context
-                        ctx = await fetch_greeting_context(
-                            city=weather_city,
-                            include_news=True,
-                        )
-                        if ctx:
-                            context_phrase = ctx
-                            print(f"[VoiceAgent] Greeting context: '{ctx}'")
-                    except Exception:
-                        pass
+                    if greeting_ctx_task is not None:
+                        try:
+                            user_name, context_phrase = await asyncio.wait_for(
+                                asyncio.shield(greeting_ctx_task),
+                                timeout=_GREETING_CTX_MAX_WAIT_S,
+                            )
+                        except asyncio.TimeoutError:
+                            print(
+                                "[VoiceAgent] Greeting context not ready within "
+                                f"{_GREETING_CTX_MAX_WAIT_S}s — greeting without it"
+                            )
+                        except Exception as e:
+                            print(f"[VoiceAgent] Greeting context error (non-fatal): {e}")
+
+                    if context_phrase:
+                        print(f"[VoiceAgent] Greeting context: '{context_phrase}'")
 
                     from .greeting_engine import build_wake_greeting
                     greeting = build_wake_greeting(
@@ -348,6 +348,8 @@ class ConversationListener:
                 else:
                     break
             finally:
+                if greeting_ctx_task is not None and not greeting_ctx_task.done():
+                    greeting_ctx_task.cancel()
                 self.responder.is_speaking_event.clear()
                 try:
                     await agent.stop()
@@ -389,6 +391,51 @@ class ConversationListener:
         pass
 
     # ── Helpers ─────────────────────────────────────────────────────
+
+    async def _greeting_context(self) -> tuple[Optional[str], Optional[str]]:
+        """Read the personalisation inputs and fetch the greeting context.
+
+        Returns ``(user_name, context_phrase)``.
+
+        Runs as a background task started *before* ``agent.connect()`` so the
+        HTTP round trips overlap the websocket handshake — the wake path must
+        never block on the network just to decorate a greeting.  The DB reads go
+        through ``call_on_main_loop`` because settings are main-loop bound.
+        """
+        user_name: Optional[str] = None
+        weather_city: Optional[str] = None
+        context_phrase: Optional[str] = None
+
+        try:
+            from database import settings_dao
+
+            name_val = await call_on_main_loop(settings_dao.get_setting("user_name"))
+            if name_val and name_val.strip():
+                user_name = name_val.strip()
+        except Exception:
+            pass
+
+        # NOTE: No namespace passed — matches the convention in routes.py's
+        # _gather_background_info() which also reads weather_city without one.
+        try:
+            from database import settings_dao
+
+            city_val = await call_on_main_loop(settings_dao.get_setting("weather_city"))
+            if city_val and city_val.strip():
+                weather_city = city_val.strip()
+        except Exception:
+            pass
+
+        try:
+            from .greeting_context import fetch_greeting_context
+
+            ctx = await fetch_greeting_context(city=weather_city, include_news=True)
+            if ctx:
+                context_phrase = ctx
+        except Exception:
+            pass
+
+        return user_name, context_phrase
 
     def _is_exit_command(self, text: str) -> bool:
         """Check if user wants to end the conversation."""
