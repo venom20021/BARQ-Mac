@@ -74,6 +74,7 @@ class Settings(BaseSettings):
     ollama_model: str = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
 
     # Job Search
+    scheduler_enabled: bool = os.getenv("BARQ_SCHEDULER", "true").lower() == "true"
     job_scan_interval_hours: int = int(os.getenv("JOB_SCAN_INTERVAL_HOURS", "6"))
     auto_match_interval_hours: int = int(os.getenv("AUTO_MATCH_INTERVAL_HOURS", "1"))
     match_threshold: float = float(os.getenv("MATCH_THRESHOLD", "0.7"))
@@ -144,7 +145,7 @@ class Settings(BaseSettings):
     # Weekly review report (W11)
     weekly_review_enabled: bool = os.getenv("WEEKLY_REVIEW_ENABLED", "true").lower() == "true"
     weekly_review_time: str = os.getenv("WEEKLY_REVIEW_TIME", "09:00")  # 24h HH:MM
-    weekly_review_day: str = os.getenv("WEEKLY_REVIEW_DAY", "sunday")  # apscheduler day_of_week
+    weekly_review_day: str = os.getenv("WEEKLY_REVIEW_DAY", "sun")  # apscheduler day_of_week (mon..sun)
     # Periodic knowledge-graph re-import (notes / memory / jobs → brains)
     brain_reimport_enabled: bool = os.getenv("BRAIN_REIMPORT_ENABLED", "true").lower() == "true"
     brain_reimport_interval_hours: int = int(os.getenv("BRAIN_REIMPORT_INTERVAL_HOURS", "6"))

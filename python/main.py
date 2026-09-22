@@ -89,6 +89,9 @@ scheduler = None
 async def start_scheduler():
     """Start the APScheduler for background tasks."""
     global scheduler
+    if not settings.scheduler_enabled:
+        print("[Scheduler] Disabled via BARQ_SCHEDULER=false — background jobs will not run")
+        return
     try:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
         from apscheduler.triggers.cron import CronTrigger
