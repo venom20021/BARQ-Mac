@@ -20,6 +20,7 @@ DEFAULT_RESUME_PATH = os.path.join(
 # Cached result to avoid re-parsing
 _parsed_cache: dict[str, Any] | None = None
 _cache_path: str = ""
+_cache_mtime: float = 0.0
 
 
 def parse_resume(file_path: str | None = None) -> dict[str, Any]:
@@ -34,12 +35,12 @@ def parse_resume(file_path: str | None = None) -> dict[str, Any]:
         Dict with keys: full_name, email, phone, linkedin_url, github_url,
                         skills, experience, education, projects, raw_md
     """
-    global _parsed_cache, _cache_path
+    global _parsed_cache, _cache_path, _cache_mtime
 
     path = file_path or DEFAULT_RESUME_PATH
 
     # Return cached result if file hasn't changed
-    if _parsed_cache and _cache_path == path:
+    if _parsed_cache and _cache_path == path and os.path.getmtime(path) == _cache_mtime:
         return _parsed_cache
 
     if not os.path.exists(path):
@@ -68,6 +69,7 @@ def parse_resume(file_path: str | None = None) -> dict[str, Any]:
     # Cache the result
     _parsed_cache = result
     _cache_path = path
+    _cache_mtime = os.path.getmtime(path)
 
     return result
 
@@ -399,6 +401,6 @@ def _extract_certifications(md: str) -> list[dict[str, Any]]:
 
 def clear_parse_cache():
     """Clear the cached parsed resume."""
-    global _parsed_cache, _cache_path
+    global _parsed_cache, _cache_path, _cache_mtime
     _parsed_cache = None
     _cache_path = ""

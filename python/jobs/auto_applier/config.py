@@ -22,10 +22,10 @@ class CandidateProfile:
     """Your professional profile — hardcoded as specified."""
     full_name: str = "Sai Prabhat"
     email: str = "prabhatsai047@gmail.com"
-    phone: str = ""
+    phone: str = "+919278011092"
     linkedin_url: str = "https://www.linkedin.com/in/saiprabhat/"
     github_url: str = "https://github.com/venom20021"
-    education: str = "Bachelor of Computer Science, University of Windsor (2024)"
+    education: str = "Bachelor of Computer Science, University of Windsor (Aug 2024)"
     years_of_experience: int = 3
 
     # Professional experience (hardcoded from your spec)

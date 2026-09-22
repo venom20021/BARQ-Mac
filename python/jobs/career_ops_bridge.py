@@ -49,7 +49,7 @@ logger = logging.getLogger("barq.career_ops_bridge")
 # ── Paths ────────────────────────────────────────────────────────────────────
 CAREER_OPS_DIR = Path(os.environ.get(
     "CAREER_OPS_TOOL_PATH",
-    "D:/JOb scrapper/career-ops",
+    os.path.expanduser("~/career-ops"),
 ))
 
 FONTS_DIR = CAREER_OPS_DIR / "fonts"
