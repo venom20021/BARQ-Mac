@@ -468,7 +468,14 @@ def mark_voice_cycle(
         _cycle_first.add(event_type)
 
     offset_ms = (time.perf_counter() - _cycle_start) * 1000
-    get_evolution_logger().record(event_type, offset_ms, metadata)
+    evo = get_evolution_logger()
+    evo.record(event_type, offset_ms, metadata)
+    # Flush immediately. The logger otherwise buffers in memory until 50 events,
+    # so a sidecar restart mid-run silently discards every mark collected since
+    # the last flush — which is exactly what happened while gathering the first
+    # baseline (a restart lost three of five cycles, leaving n=2). A handful of
+    # marks per wake is cheap to write; losing samples is not.
+    evo.flush()
     return offset_ms
 
 

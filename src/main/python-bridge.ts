@@ -120,6 +120,22 @@ class PythonSidecar {
   }
 
   /**
+   * Is the macOS launchd job for the sidecar loaded?
+   *
+   * When it is, launchd owns port 8956 and we must not spawn a competing
+   * uvicorn — see the adoption block in start().
+   */
+  private _launchdJobLoaded(): boolean {
+    try {
+      const out = execSync('launchctl list', { encoding: 'utf8', timeout: 3000 })
+      return out.includes('com.barq.mac.sidecar')
+    } catch {
+      // launchctl missing or failed — assume it does not own the sidecar
+      return false
+    }
+  }
+
+  /**
    * Kill any existing process holding the sidecar port (Windows only).
    */
   private async freePort(): Promise<void> {
@@ -223,19 +239,42 @@ class PythonSidecar {
       // On Mac the sidecar runs as com.barq.mac.sidecar (auto-start at login).
       // Spawning a second uvicorn would EADDRINUSE-crash-loop, so adopt the
       // existing one instead. Voice still runs locally — same machine, same port.
-      try {
-        const probe = await fetch(`${SIDECAR_URL}/health`, { signal: AbortSignal.timeout(2000) })
-        const body = (await probe.json()) as { status?: string }
-        if (probe.ok && body?.status === 'ok') {
-          console.log('[PythonSidecar] ✅ Local sidecar already healthy (launchd) — reusing it, skipping spawn')
-          this.isRunning = true
-          this._startupComplete = true
-          this.startHealthChecks()
-          this._resolveStart()
-          return
+      //
+      // A single 2s probe is NOT enough to decide this. If launchd happens to be
+      // mid-restart (kickstart, crash recovery, or a slow boot) the probe misses
+      // it, we spawn our own uvicorn, and from then on the two fight over the
+      // port: the launchd one exits with EADDRINUSE on every retry, forever,
+      // while our --reload copy serves. The copies are NOT interchangeable —
+      // ours does not inherit the launchd plist's environment
+      // (BARQ_DEV_TRIGGERS, BARQ_SKIP_TELEGRAM, …).
+      // So when launchd owns the job, WAIT for it instead of racing it.
+      const launchdOwnsSidecar = process.platform === 'darwin' && this._launchdJobLoaded()
+      const probeDeadline = Date.now() + (launchdOwnsSidecar ? 20000 : 2000)
+
+      while (Date.now() < probeDeadline) {
+        try {
+          const probe = await fetch(`${SIDECAR_URL}/health`, { signal: AbortSignal.timeout(2000) })
+          const body = (await probe.json()) as { status?: string }
+          if (probe.ok && body?.status === 'ok') {
+            console.log('[PythonSidecar] ✅ Local sidecar already healthy (launchd) — reusing it, skipping spawn')
+            this.isRunning = true
+            this._startupComplete = true
+            this.startHealthChecks()
+            this._resolveStart()
+            return
+          }
+        } catch {
+          // Not up yet — keep waiting while launchd owns the job
         }
-      } catch {
-        // Not running — fall through and spawn it ourselves
+        if (!launchdOwnsSidecar) break
+        await new Promise((resolve) => setTimeout(resolve, 500))
+      }
+
+      if (launchdOwnsSidecar) {
+        console.warn(
+          '[PythonSidecar] launchd owns com.barq.mac.sidecar but it never became ' +
+          'healthy — spawning a local process as a fallback'
+        )
       }
 
       // ── ALWAYS start local Python for voice (mic/speakers are on this machine) ──

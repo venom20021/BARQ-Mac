@@ -5,7 +5,9 @@ multi-turn conversation state, sensitivity control, and command history.
 """
 
 import asyncio
+import os
 import re
+import threading
 import time
 from typing import Any, Optional
 
@@ -3349,4 +3351,93 @@ async def voice_latency(limit: int = 500):
         "standalone": standalone,
         "derived_p50": derived,
         "recent": evo.query(limit=15),
+    }
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  Dev-only: simulate a wake (requires BARQ_DEV_TRIGGERS=1)
+# ═════════════════════════════════════════════════════════════════════════════
+
+# A real wake can only be produced by speaking the wake word, which makes
+# repeatable latency runs (the Phase 1 A/B work) impractical — you cannot talk to
+# the machine 20 times per configuration. This runs the identical callback
+# instead. Disabled by default and returns 404 rather than advertising itself.
+# The sidecar binds 127.0.0.1 (see scripts/com.barq.mac.sidecar.plist), so this
+# is not reachable from off-box.
+_DEV_TRIGGERS_ENABLED = os.getenv("BARQ_DEV_TRIGGERS", "0").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+)
+
+# The in-flight simulated-wake thread, if any. Guards against two simulated
+# cycles overlapping — a real wake cannot overlap itself because the detector is
+# paused for the whole conversation.
+_simulate_wake_thread: Optional[threading.Thread] = None
+
+
+class SimulateWakeRequest(BaseModel):
+    """Body for ``POST /voice/simulate-wake``."""
+
+    utterance: str = ""
+
+
+@router.post("/simulate-wake")
+async def simulate_wake(request: SimulateWakeRequest):
+    """Fire the wake path without a wake word. DEV ONLY.
+
+    Runs the exact callback a real detection runs, so the latency marks it
+    records are directly comparable to a spoken wake.
+
+    This makes BARQ speak its greeting out loud and opens the microphone.
+    """
+    if not _DEV_TRIGGERS_ENABLED:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    if conversation_listener.is_active:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "A conversation is already active — end it before simulating "
+                "another wake"
+            ),
+        )
+
+    # _on_wake_word_callback builds its OWN event loop and blocks on
+    # loop.run_forever() for the duration of the conversation, so it has to run
+    # on a dedicated thread — exactly how the Vosk detector thread calls it.
+    # Awaiting it here would raise "This event loop is already running".
+    #
+    # Only one simulated cycle may be in flight at a time: a real wake can't
+    # overlap itself (the detector is paused for the whole conversation), and two
+    # concurrent callbacks would each build a competing event loop and listener.
+    global _simulate_wake_thread
+    if _simulate_wake_thread is not None and _simulate_wake_thread.is_alive():
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "A previous simulated wake is still running — wait for it to "
+                "finish (check /voice/status for conversation_active)"
+            ),
+        )
+
+    _simulate_wake_thread = threading.Thread(
+        target=_on_wake_word_callback,
+        args=(request.utterance,),
+        name="simulate-wake",
+        daemon=True,
+    )
+    _simulate_wake_thread.start()
+
+    return {
+        "status": "fired",
+        "utterance": request.utterance,
+        "hands_free_mode": _hands_free_mode,
+        "note": (
+            "Greeting plays aloud; the mic opens and a real conversation starts. "
+            "Read GET /voice/latency for the marks."
+            if _hands_free_mode
+            else "WARNING: hands-free mode is OFF — the callback will return "
+            "without starting a conversation. Enable hands-free first."
+        ),
     }

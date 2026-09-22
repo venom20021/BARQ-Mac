@@ -30,6 +30,8 @@
         <string>8956</string>
         <key>BARQ_SKIP_TELEGRAM</key>
         <string>false</string>
+        <key>BARQ_DEV_TRIGGERS</key>
+        <string>1</string>
     </dict>
 
     <key>RunAtLoad</key>
