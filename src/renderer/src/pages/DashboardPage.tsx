@@ -410,7 +410,14 @@ export function DashboardPage(): JSX.Element {
   const [userName, setUserName] = useState(getStoredUserName)
 
   // ── Dashboard view mode: 'network' (existing) or 'humanoid' (new) ──
-  const [dashboardView, setDashboardView] = useState<'network' | 'humanoid'>('network')
+  // Restore the user's last choice (persisted by toggleDashboardView).
+  const [dashboardView, setDashboardView] = useState<'network' | 'humanoid'>(() => {
+    try {
+      return localStorage.getItem('barq_dashboard_view') === 'humanoid' ? 'humanoid' : 'network'
+    } catch {
+      return 'network'
+    }
+  })
 
   const toggleDashboardView = useCallback(() => {
     setDashboardView(prev => {

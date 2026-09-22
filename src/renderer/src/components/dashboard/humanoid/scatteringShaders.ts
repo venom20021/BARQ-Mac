@@ -83,12 +83,16 @@ export const scatteringVertexShader = /* glsl */ `
     vDistanceToCore = length(pos - vec3(0.0,1.2,0.0));
 
     vec4 mv = modelViewMatrix * vec4(pos,1.0);
-    gl_PointSize = 3.5 * (60.0 / -mv.z);
+    // Crisp points: ~3.5px at z=4 so adjacent ring particles read as
+    // continuous scanlines instead of overlapping soft blobs.
+    gl_PointSize = 14.0 / -mv.z;
     gl_Position = projectionMatrix * mv;
   }
 `;
 
 export const scatteringFragmentShader = /* glsl */ `
+  uniform float uTime;
+
   varying vec3 vPosition;
   varying float vDistanceToCore;
 
@@ -97,18 +101,22 @@ export const scatteringFragmentShader = /* glsl */ `
     float dist = length(uv);
     if (dist > 0.5) discard;
 
-    float alpha = 1.0 - smoothstep(0.0, 0.5, dist);
-
-    // Scanlines: on/off gating to create horizontal line effect
-    float scan = sin(vPosition.y * 40.0);
-    if (scan < 0.0) alpha *= 0.05; // dark gap between scanlines
+    // Hard-edged disc with 1px AA — keeps scanlines sharp
+    float alpha = 1.0 - smoothstep(0.32, 0.5, dist);
 
     // Base color: cyan/electric blue
     vec3 col = vec3(0.0, 0.55, 0.8);
 
-    // Brighter at edges of scanlines ( Fresnel-like )
-    float edge = abs(sin(vPosition.y * 40.0));
-    col += vec3(0.0, 0.2, 0.3) * edge;
+    // Horizontal scanline modulation: bright line centers, dark gaps
+    // between rings (period matches ring spacing, not per-particle noise)
+    float scan = 0.55 + 0.45 * sin(vPosition.y * 125.66); // 20 lines per unit
+    col *= 0.6 + 0.5 * scan;
+    alpha *= 0.45 + 0.55 * scan;
+
+    // Traveling highlight band (classic hologram refresh sweep)
+    float band = fract(vPosition.y * 0.5 - uTime * 0.25);
+    float sweep = smoothstep(0.08, 0.0, abs(band - 0.5));
+    col += vec3(0.0, 0.35, 0.5) * sweep * 0.6;
 
     // Amber core inside head
     if (vDistanceToCore < 0.7) {
@@ -122,6 +130,6 @@ export const scatteringFragmentShader = /* glsl */ `
     float rim = pow(dist*2.0, 3.0);
     col += vec3(0.0, 0.6, 0.9) * rim * 0.15;
 
-    gl_FragColor = vec4(col, alpha * 0.5);
+    gl_FragColor = vec4(col, alpha * 0.85);
   }
 `;
