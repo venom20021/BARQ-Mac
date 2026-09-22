@@ -379,7 +379,7 @@ class PipecatVoiceAgent(VoiceAgentBase):
                 if self.ollama_model not in model_names:
                     print(
                         f"[PipecatAgent] Model '{self.ollama_model}' not found on Ollama. "
-                        f"Available models: {', '.join(model_names[:5])}{"..." if len(model_names) > 5 else ""}. "
+                        f"Available models: {', '.join(model_names[:5])}{'...' if len(model_names) > 5 else ''}. "
                         f"Run: ollama pull {self.ollama_model}"
                     )
                     return False

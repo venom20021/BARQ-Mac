@@ -947,13 +947,39 @@ async def start_listening():
 
 @router.post("/stop")
 async def stop_listening():
-    """Stop wake word detection."""
+    """Mute the microphone: stop wake word detection AND any active conversation.
+
+    The voice agent (Deepgram/Gemini) opens its OWN microphone stream during a
+    conversation.  Stopping only the wake word detector leaves that stream open,
+    so the OS mic stays live after the dashboard mute.  We must therefore end
+    the conversation too — which releases the agent's input stream via
+    ``agent.stop()``.
+
+    ``stop_conversation()`` normally resumes the wake detector through its
+    ``on_stop`` callback; we suppress that here so muting actually sticks.
+    """
     global wake_word_detector
 
+    # ── Step 1: End any active voice-agent conversation (releases its mic) ──
+    if conversation_listener.is_active:
+        saved_on_stop = conversation_listener.on_stop
+        conversation_listener.on_stop = None  # don't auto-resume the detector
+        try:
+            await conversation_listener.stop_conversation()
+            print("[Voice] Active conversation stopped as part of mute")
+        finally:
+            conversation_listener.on_stop = saved_on_stop
+
+    # ── Step 2: Stop the wake word detector (releases its mic stream) ──
     if wake_word_detector:
         wake_word_detector.stop()
 
-    await analytics_dao.log_activity("voice", "stop_listening", "Wake word detection stopped")
+    # ── Step 3: Fallback — end any lingering conversation session ──
+    # (e.g. one started via /conversation/start without the agent loop)
+    if responder.conversation.is_active:
+        responder.conversation.end_session()
+
+    await analytics_dao.log_activity("voice", "stop_listening", "Microphone muted")
     return {"status": "stopped"}
 
 
