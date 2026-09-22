@@ -957,8 +957,16 @@ async def stop_listening():
 
     ``stop_conversation()`` normally resumes the wake detector through its
     ``on_stop`` callback; we suppress that here so muting actually sticks.
+
+    Every step is independently guarded.  Muting has to reach *all* consumers
+    of the microphone even if one of them fails to tear down: an exception used
+    to escape from step 1 and skip steps 2 and 3, leaving the wake detector
+    running after the user pressed mute.  Partial failures are reported back in
+    ``warnings`` rather than aborting the mute.
     """
     global wake_word_detector
+
+    errors: list[str] = []
 
     # ── Step 1: End any active voice-agent conversation (releases its mic) ──
     if conversation_listener.is_active:
@@ -967,19 +975,36 @@ async def stop_listening():
         try:
             await conversation_listener.stop_conversation()
             print("[Voice] Active conversation stopped as part of mute")
+        except Exception as e:
+            errors.append(f"conversation: {e}")
+            print(f"[Voice] stop_conversation failed during mute (continuing): {e}")
         finally:
             conversation_listener.on_stop = saved_on_stop
 
     # ── Step 2: Stop the wake word detector (releases its mic stream) ──
     if wake_word_detector:
-        wake_word_detector.stop()
+        try:
+            wake_word_detector.stop()
+        except Exception as e:
+            errors.append(f"wake_word: {e}")
+            print(f"[Voice] wake_word_detector.stop failed (continuing): {e}")
 
     # ── Step 3: Fallback — end any lingering conversation session ──
     # (e.g. one started via /conversation/start without the agent loop)
-    if responder.conversation.is_active:
-        responder.conversation.end_session()
+    try:
+        if responder.conversation.is_active:
+            responder.conversation.end_session()
+    except Exception as e:
+        errors.append(f"session: {e}")
+        print(f"[Voice] end_session failed (continuing): {e}")
 
-    await analytics_dao.log_activity("voice", "stop_listening", "Microphone muted")
+    try:
+        await analytics_dao.log_activity("voice", "stop_listening", "Microphone muted")
+    except Exception as e:
+        print(f"[Voice] analytics log failed (non-fatal): {e}")
+
+    if errors:
+        return {"status": "stopped", "warnings": errors}
     return {"status": "stopped"}
 
 

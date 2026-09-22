@@ -63,6 +63,10 @@ class ConversationListener:
         self._conversation_active = False
         self._loop_task: Optional[asyncio.Task] = None
         self._managed_loop: Optional[asyncio.AbstractEventLoop] = None
+        # The live Voice Agent, held so stop_conversation() can release its
+        # microphone stream directly rather than relying on the loop task's
+        # cleanup — which never executes if the task's loop has stopped.
+        self._agent = None
         self._exit_phrases = [
             "nothing", "that's all", "we're done",
             "end conversation", "stop conversation",
@@ -115,13 +119,47 @@ class ConversationListener:
         except Exception as e:
             print(f"[Conversation] Session summary save error (non-fatal): {e}")
 
-        if self._loop_task:
-            self._loop_task.cancel()
+        # ── Stop the loop task ─────────────────────────────────────────
+        # ``_loop_task`` belongs to the managed voice loop, while this method is
+        # normally called from the main/uvicorn loop.  Awaiting a task owned by
+        # a foreign loop raises RuntimeError — which used to abort this method
+        # (and, through routes.stop_listening, the rest of the mute path),
+        # leaving the microphone open.  Await only when the task belongs to the
+        # running loop; otherwise cancel() is enough to have its own loop run
+        # the cleanup.
+        task = self._loop_task
+        self._loop_task = None
+        if task is not None:
+            task.cancel()
             try:
-                await self._loop_task
-            except asyncio.CancelledError:
-                pass
-            self._loop_task = None
+                running_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                running_loop = None
+            if running_loop is not None and task.get_loop() is running_loop:
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                except Exception as e:
+                    print(f"[Conversation] Loop task teardown error (non-fatal): {e}")
+            else:
+                print("[Conversation] Loop task owns another loop — cancelled without awaiting")
+
+        # ── Release the microphone stream directly ──────────────────────
+        # The loop task's ``finally`` calls agent.stop(), so cancel() above is
+        # normally enough.  But if that task is orphaned on a stopped loop its
+        # cleanup never runs and the OS mic stays hot for good — the "mute
+        # doesn't mute the whole system" bug.  Stopping the agent here is
+        # idempotent and guarantees the stream is released.
+        agent = self._agent
+        self._agent = None
+        if agent is not None:
+            try:
+                await agent.stop()
+                print("[Conversation] Voice agent stopped — microphone released")
+            except Exception as e:
+                print(f"[Conversation] agent.stop() error (non-fatal): {e}")
+
         self.responder.conversation.end_session()
 
         await self.ws_manager.cancel_all()
@@ -178,6 +216,9 @@ class ConversationListener:
                 print(f"[VoiceAgent] No voice agent available for backend '{backend}'")
                 self._conversation_active = False
                 return
+            # Held so stop_conversation() can stop it even if this task is
+            # orphaned and never reaches its own ``finally``.
+            self._agent = agent
 
             try:
                 connected = await agent.connect()
@@ -308,7 +349,13 @@ class ConversationListener:
                     break
             finally:
                 self.responder.is_speaking_event.clear()
-                await agent.stop()
+                try:
+                    await agent.stop()
+                except Exception as e:
+                    print(f"[VoiceAgent] agent.stop() error (non-fatal): {e}")
+                finally:
+                    if self._agent is agent:
+                        self._agent = None
 
     def _on_agent_final_transcript(self, text: str):
         """Handle a final transcript from the Voice Agent."""
