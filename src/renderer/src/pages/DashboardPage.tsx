@@ -825,8 +825,10 @@ export function DashboardPage(): JSX.Element {
       {/* ── Subtle vignette overlay ───────────────────────────────── */}
       <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.4) 100%)' }} />
 
-      {/* ═══ VIEW TOGGLE (top-right, above HUD) ═══ */}
-      <div className="absolute top-6 right-20 z-30">
+      {/* ═══ VIEW TOGGLE (top-right, above HUD) ═══
+           In companion mode it steps left of the companion's own status rail,
+           which owns top-right there — otherwise the two overlap. */}
+      <div className={`absolute top-6 z-30 ${dashboardView === 'companion' ? 'right-[210px]' : 'right-20'}`}>
         <button
           onClick={toggleDashboardView}
           className="flex items-center gap-2 px-3 py-1.5 rounded-lg backdrop-blur-md bg-white/5 border border-white/10 hover:bg-white/10 hover:border-cyan-500/30 transition-all duration-300 group"
@@ -966,7 +968,10 @@ export function DashboardPage(): JSX.Element {
         )}
       </AnimatePresence>
 
-      {/* ═══ TOP-LEFT: Weather + Greeting ═══ */}
+      {/* ═══ TOP-LEFT: Weather + Greeting ═══
+           Network view only — the companion renders its own left rail
+           (brand, visual modes, themes) in this same corner. */}
+      {dashboardView !== 'companion' && (
       <div className="absolute top-8 left-24 z-10">
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: 'easeOut' }} className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
@@ -1061,6 +1066,7 @@ export function DashboardPage(): JSX.Element {
           </div>
         </motion.div>
       </div>
+      )}
 
       {/* ═══ LIVE CAPTIONS OVERLAY ═══ */}
       <LiveCaptions
